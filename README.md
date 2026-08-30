@@ -1,113 +1,78 @@
-# vinext-starter
+# Banners of Caldris
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+**War for the Realm** is a single-player medieval campaign strategy game inspired by the territorial clarity of classic Risk. Command the Royal Lions across a 32-territory war table, build armies of infantry, archers, and cavalry, secure regional collections, and break three rival houses.
 
-## Prerequisites
+The game is designed for the browser with a direct Three.js war table and battle diorama. Devices without WebGL receive a complete illustrated command map and battlefield rather than a broken or reduced-control screen.
 
-- Node.js `>=22.13.0`
-- Linux with `flock`, `curl`, and GNU `timeout`
+## Play
 
-## Sites Lifecycle
+- [Live game](https://banners-of-caldris.paulhendrie.chatgpt.site)
+- [Live forge ledger](https://banners-of-caldris.paulhendrie.chatgpt.site/progress)
 
-The Sites lifecycle CLI runs the locked dependency install before returning this checkout. Edit the source under `app/`, then checkpoint when a coherent milestone is ready to inspect or share. The remote Sites builder runs `npm run build` against the pushed commit. Do not repeat install or build as a normal pre-checkpoint step.
+## Core rules
 
-This starter does not use `wrangler.jsonc`.
+Each turn has four decisions:
 
-`install:ci` is intentionally a single, non-retrying `npm ci`. It refuses a concurrent install for the same project, consumes a matching image-seeded npm cache with `--prefer-offline` while retaining registry fallback for a missing cache object, otherwise downloads and verifies the complete vinext tarball recorded in `package-lock.json`, limits npm to one socket, and terminates a stalled install. `build` applies a short timeout. These helpers target Linux and use GNU `timeout`; they are not native macOS scripts.
+1. **King's Order** — seal one mutually exclusive command: extra levies, a cavalry-led opening assault, or an archer-led defence.
+2. **Muster** — gain `max(3, floor(territories / 3))` points plus bonuses from complete territorial collections. Infantry cost 1; archers and cavalry cost 2.
+3. **Conquer** — attack an adjacent enemy with up to three units while leaving one unit behind. Defenders roll up to two dice and win ties. Cavalry gain +1 while attacking; archers gain +1 while defending.
+4. **Final movement** — once per turn, move any mix of units between connected friendly territories, leaving one unit behind.
 
-Scripts that need writable project-scoped home, npm, XDG, and temporary paths use `scripts/sites-env.sh`. The `dev` and `start` scripts honor the caller's runtime environment and keep Wrangler logs inside the checkout. The generated `.sites-runtime/` directory is disposable and ignored by Git.
+Secure all 32 territories to win the region. Campaign progress and the current battle state persist locally in the browser.
 
-## Included Shape
+## Campaign
 
-- edit site code under `app/`
-- `app/chatgpt-auth.ts` provides optional dispatch-owned ChatGPT sign-in helpers
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/index.ts` reads the D1 binding from the Cloudflare Worker environment
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
+The twelve-chapter story follows the exiled King Aldren Caerlyn's return from the Vale of Stoneford to Crownspire. Every chapter has its own connected 32-territory topology, route network and chokepoints, deployment, regional naming and palette, threat level, and mechanical field rule:
 
-## Workspace Auth Headers
+1. The Vale of Stoneford
+2. The Amber Coast
+3. The Fenward
+4. The Ironspine
+5. The Greenwood
+6. The Red Plains
+7. The Lakelands
+8. The Border March
+9. The Frostlands
+10. The Broken Duchies
+11. The King's Road
+12. Crownspire
 
-OpenAI workspace sites can read the current user's email from
-`oai-authenticated-user-email`.
+Locked fronts can be opened as **battlefield-intelligence skirmishes** from the campaign atlas. These previews use the chapter's real bordered political map, persistent territory labels, setup, rule, and AI pressure, but never overwrite the active campaign save or unlock progression. Sequential victories carry forward as bounded veteran units and periodic muster bonuses.
 
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
+The in-game `/progress` ledger is the source of truth for which systems and chapters have completed adversarial play review.
 
-Treat the full name as optional and fall back to email when it is absent:
+## Local development
 
-```tsx
-import { headers } from "next/headers";
+Requires Node.js 22.13 or newer.
 
-export default async function Home() {
-  const requestHeaders = await headers();
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
+```bash
+npm ci
+npm run dev
 ```
 
-## Optional Dispatch-Owned ChatGPT Sign-In
+Open the local URL printed by Vite. To run the production build plus all deterministic engine and UI tests:
 
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
+```bash
+npm test
+```
 
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- In a Server Component, start sign-in with
-  `<a href={chatGPTSignInPath(returnTo)} target="_top">`. The auth helper
-  module is server-only; do not import it into a Client Component.
-- Do not use `fetch`, XHR, a client-side router, or a framework link that can
-  prefetch the sign-in route. SIWC must start as a top-level navigation.
-- Never request the AuthAPI authorization endpoint directly. The dispatch-owned
-  `/signin-with-chatgpt` route must start the SIWC flow.
-- Use `chatGPTSignOutPath(returnTo)` for browser sign-out links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
+## Architecture
 
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
+- `lib/game.ts` — deterministic campaign state, topology, combat, reinforcement, fortification, and rival AI
+- `components/three-board.tsx` — interactive Three.js war table plus illustrated fallback
+- `components/battle-diorama.tsx` — Three.js battle theatre plus illustrated fallback
+- `components/game-shell.tsx` — title, campaign, council, board, save flow, rulebook, and reports
+- `tests/game-engine.test.mjs` — topology, orders, deterministic battle, fortification, and AI-report invariants
 
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
+All gameplay randomness is seeded, so combat transcripts can be reproduced in tests and save files. Automated coverage also verifies that all twelve route graphs are distinct, connected and symmetric; field rules affect engine decisions; and intelligence skirmishes cannot advance or overwrite the campaign.
 
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
+## Accessibility and resilience
 
-## Diagnostic Commands
+- Every territory is a labelled native button in fallback mode.
+- Critical information is repeated through icon, text, and colour.
+- Reduced motion follows the operating-system preference and can be changed in the campaign menu.
+- A WebGL failure automatically switches to an illustrated board without losing controls.
 
-- `npm run install:ci`: perform the one bounded lockfile install
-- `npm run dev`: start the Vite/Vinext development server
-- `npm run build`: build the deployable Sites artifact
-- `npm run start`: start the built Vinext application
-- `npm test`: build and verify the rendered development-preview metadata
-- `npm run db:generate`: generate Drizzle migrations after schema changes
+## Status
 
-Use build commands for targeted diagnosis after a remote failure, not as part of the normal checkpoint path.
-
-The timeout defaults can be overridden for a controlled canary with `SITES_INSTALL_TIMEOUT`, `SITES_INSTALL_KILL_AFTER`, `SITES_BUILD_TIMEOUT`, and `SITES_BUILD_KILL_AFTER`. A timeout fails the command; the helpers never retry an unchanged install or build.
-
-## Learn More
-
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+This repository contains the playable campaign build and its live evaluation ledger. The project deliberately distinguishes “implemented” from “fully audited”; see `/progress` for the current quality review and next largest gap.
