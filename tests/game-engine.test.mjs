@@ -120,3 +120,48 @@ test("resolves a full assault deterministically and reports its rounds", () => {
   assert.deepEqual(first, second);
   assert.ok(first?.result.rounds >= 1);
 });
+
+test("makes the opening campaign a focused two-region objective", () => {
+  const game = rules.createGame(1, 0);
+  const targetCollections = new Set(["north", "crown"]);
+  const secured = { ...game, territories: game.territories.map(item => targetCollections.has(item.collection) ? { ...item, owner: "royal" } : item) };
+  const progress = rules.campaignObjectiveProgress(secured);
+  assert.equal(progress.met, true);
+  assert.equal(progress.total, 2);
+  assert.ok(secured.territories.some(item => item.owner !== "royal"));
+});
+
+test("supports a deliberate occupation after capture while leaving a guard", () => {
+  const game = rules.createGame(1, 0);
+  const from = game.territories.find(item => item.id === "stoneford");
+  const to = game.territories.find(item => item.id === "crownmarket");
+  to.owner = "royal";
+  const beforeFrom = rules.totalUnits(from.units);
+  const beforeTo = rules.totalUnits(to.units);
+  const occupied = rules.occupyAfterCapture(game, from.id, to.id, { infantry: 1, archers: 0, cavalry: 0 });
+  assert.equal(rules.totalUnits(occupied.territories.find(item => item.id === from.id).units), beforeFrom - 1);
+  assert.equal(rules.totalUnits(occupied.territories.find(item => item.id === to.id).units), beforeTo + 1);
+  assert.ok(rules.totalUnits(occupied.territories.find(item => item.id === from.id).units) >= 1);
+});
+
+test("derives stable battle forecasts from the combat engine", () => {
+  const game = rules.startAttackPhase(rules.chooseKingsOrder(rules.createGame(1, 0), "vanguard"));
+  const first = rules.battleForecast(game, "stoneford", "crownmarket", ["cavalry", "infantry", "archers"]);
+  const second = rules.battleForecast(game, "stoneford", "crownmarket", ["cavalry", "infantry", "archers"]);
+  assert.deepEqual(first, second);
+  assert.ok(first.captureChance >= 0 && first.captureChance <= 100);
+  assert.ok(["Favoured", "Contested", "Desperate"].includes(first.verdict));
+});
+
+test("exposes doctrine-led enemy intentions before the turn resolves", () => {
+  const intents = rules.enemyIntelligence(rules.createGame(1, 0));
+  assert.equal(intents.length, 3);
+  assert.equal(new Set(intents.map(intent => intent.faction)).size, 3);
+  assert.ok(intents.every(intent => intent.reason.length > 12));
+});
+
+test("gives every campaign region a distinct strategic shape", () => {
+  const profiles = rules.campaignStages.map(stage => stage.terrainProfile);
+  assert.equal(new Set(profiles).size, 12);
+  assert.ok(profiles.every(profile => profile.length > 35));
+});

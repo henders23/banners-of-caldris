@@ -5,7 +5,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import type { GameState, Territory } from "@/lib/game";
+import type { CampaignRule, GameState, Territory } from "@/lib/game";
 import { campaignStages, collections, factions, totalUnits } from "@/lib/game";
 
 type Props = {
@@ -13,6 +13,7 @@ type Props = {
   selectedId: string | null;
   targetIds: string[];
   objectiveIds?: string[];
+  intentIds?: string[];
   overlay?: MapOverlay;
   onSelect: (territory: Territory) => void;
   reducedMotion?: boolean;
@@ -53,6 +54,19 @@ function territoryCells(territories: Territory[]) {
 }
 
 const terrainGlyphs: Record<string, string> = { riches: "⚓", causeways: "≈", "high-ground": "▲", forest: "♠", "wolf-charge": "⋮", "bridge-tolls": "≋", frontier: "♜", winter: "✦", fractured: "◇", "royal-road": "⚑", citadel: "♜", standard: "♟" };
+
+function MapSignatureSvg({ rule }: { rule: CampaignRule }) {
+  if (rule === "riches") return <g className="map-signature water"><path d="M76 -5 C65 25 98 52 72 105 L105 105 L105 -5 Z"/></g>;
+  if (rule === "causeways") return <g className="map-signature causeways"><path d="M-5 30 C25 42 65 20 105 34 M-5 54 C28 65 65 43 105 57 M-5 74 C35 86 68 63 105 78"/><path className="crossings" d="M18 16 V88 M51 16 V88 M82 16 V88"/></g>;
+  if (rule === "high-ground") return <g className="map-signature mountains">{Array.from({ length: 8 }, (_,index) => <polygon key={index} points={`${25+index*6},${18+(index%2)*5} ${31+index*6},50 ${19+index*6},50`}/>)}</g>;
+  if (rule === "forest") return <g className="map-signature forest">{Array.from({ length: 18 }, (_,index) => <circle key={index} cx={(index*17)%96+2} cy={(index*29)%88+6} r={2.5+index%3}/>)}</g>;
+  if (rule === "bridge-tolls") return <g className="map-signature water"><ellipse cx="30" cy="35" rx="22" ry="15"/><ellipse cx="70" cy="66" rx="25" ry="18"/><ellipse cx="75" cy="20" rx="11" ry="8"/></g>;
+  if (rule === "frontier") return <g className="map-signature wall"><path d="M8 22 C40 39 62 14 94 29"/></g>;
+  if (rule === "fractured") return <g className="map-signature fissures"><path d="M12 5 L50 48 L43 95 M51 0 L42 46 L68 100 M85 7 L58 51 L84 94"/></g>;
+  if (rule === "royal-road") return <g className="map-signature royal-road"><path d="M6 90 C34 70 58 52 95 9"/></g>;
+  if (rule === "citadel") return <g className="map-signature citadel"><circle cx="72" cy="43" r="30"/><circle cx="72" cy="43" r="21"/><circle cx="72" cy="43" r="12"/></g>;
+  return null;
+}
 
 function worldPosition(territory: Territory) {
   return new THREE.Vector3((territory.x - 0.5) * WORLD_W, 0.28, (territory.y - 0.5) * WORLD_H);
@@ -120,6 +134,42 @@ function addRoute(group: THREE.Group, a: Territory, b: Territory, color: number,
   group.add(new THREE.Line(geometry, material));
 }
 
+function drawMapSignature(ctx: CanvasRenderingContext2D, rule: CampaignRule, width: number, height: number) {
+  ctx.save();
+  if (rule === "riches") {
+    ctx.globalAlpha = .55; ctx.fillStyle = "#123e52"; ctx.beginPath(); ctx.moveTo(width * .78, 0); ctx.bezierCurveTo(width * .7, height * .28, width * .95, height * .55, width * .72, height); ctx.lineTo(width, height); ctx.lineTo(width, 0); ctx.fill();
+  } else if (rule === "causeways") {
+    ctx.strokeStyle = "#123e4e"; ctx.lineWidth = 42; ctx.globalAlpha = .7;
+    [ .3, .52, .72 ].forEach((y, index) => { ctx.beginPath(); ctx.moveTo(0, height * y); ctx.bezierCurveTo(width * .3, height * (y + .08), width * .65, height * (y - .08), width, height * (y + index * .025)); ctx.stroke(); });
+    ctx.strokeStyle = "#d8b875"; ctx.lineWidth = 18; [ .18, .51, .82 ].forEach(x => { ctx.beginPath(); ctx.moveTo(width * x, height * .18); ctx.lineTo(width * x, height * .84); ctx.stroke(); });
+  } else if (rule === "high-ground") {
+    ctx.fillStyle = "#34383b"; ctx.strokeStyle = "#d8c79e"; ctx.lineWidth = 3; ctx.globalAlpha = .65;
+    for (let index = 0; index < 13; index++) { const x = width * (.25 + index * .042); const y = height * (.18 + Math.sin(index) * .08); ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 62, y + 150); ctx.lineTo(x - 62, y + 150); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+  } else if (rule === "forest") {
+    ctx.fillStyle = "#17361f"; ctx.globalAlpha = .62;
+    for (let index = 0; index < 58; index++) { const x = (index * 227) % width; const y = (index * 149 + 120) % height; ctx.beginPath(); ctx.arc(x, y, 24 + index % 4 * 7, 0, Math.PI * 2); ctx.fill(); }
+  } else if (rule === "wolf-charge") {
+    ctx.strokeStyle = "#e0bd79"; ctx.lineWidth = 8; ctx.globalAlpha = .45; ctx.setLineDash([20, 35]);
+    [ .3, .5, .7 ].forEach(y => { ctx.beginPath(); ctx.moveTo(0, height * y); ctx.lineTo(width, height * (y - .12)); ctx.stroke(); }); ctx.setLineDash([]);
+  } else if (rule === "bridge-tolls") {
+    ctx.fillStyle = "#14475c"; ctx.globalAlpha = .72;
+    [[.3,.35,.22,.17],[.68,.62,.25,.2],[.75,.22,.12,.1]].forEach(([x,y,rx,ry]) => { ctx.beginPath(); ctx.ellipse(width*x,height*y,width*rx,height*ry,-.2,0,Math.PI*2); ctx.fill(); });
+  } else if (rule === "frontier") {
+    ctx.strokeStyle = "#d0b16f"; ctx.lineWidth = 18; ctx.globalAlpha = .72; ctx.setLineDash([42, 18]); ctx.beginPath(); ctx.moveTo(width * .12, height * .2); ctx.bezierCurveTo(width * .45, height * .34, width * .6, height * .15, width * .9, height * .3); ctx.stroke(); ctx.setLineDash([]);
+  } else if (rule === "winter") {
+    ctx.strokeStyle = "#d9eff6"; ctx.lineWidth = 5; ctx.globalAlpha = .6;
+    for (let index = 0; index < 14; index++) { const x = index * width / 13; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x + (index % 2 ? 80 : -60), height * .32); ctx.lineTo(x + (index % 3 ? 10 : 130), height * .65); ctx.lineTo(x - 30, height); ctx.stroke(); }
+  } else if (rule === "fractured") {
+    ctx.strokeStyle = "#251a18"; ctx.lineWidth = 16; ctx.globalAlpha = .65;
+    [[.12,.08,.45,.9],[.48,0,.32,1],[.82,.06,.58,.94]].forEach(([x1,y1,x2,y2]) => { ctx.beginPath(); ctx.moveTo(width*x1,height*y1); ctx.lineTo(width*((x1+x2)/2+.06),height*.48); ctx.lineTo(width*x2,height*y2); ctx.stroke(); });
+  } else if (rule === "royal-road") {
+    ctx.strokeStyle = "#e0bd67"; ctx.lineWidth = 24; ctx.globalAlpha = .72; ctx.beginPath(); ctx.moveTo(width * .08, height * .86); ctx.bezierCurveTo(width * .32, height * .68, width * .56, height * .5, width * .93, height * .12); ctx.stroke();
+  } else if (rule === "citadel") {
+    ctx.strokeStyle = "#d4b66d"; ctx.globalAlpha = .7; [ .3, .22, .14 ].forEach((radius,index) => { ctx.lineWidth = 16 - index * 3; ctx.beginPath(); ctx.arc(width*.72,height*.42,width*radius,0,Math.PI*2); ctx.stroke(); });
+  }
+  ctx.restore();
+}
+
 function proceduralMapTexture(game: GameState, palette: [string, string]) {
   const canvas = document.createElement("canvas");
   canvas.width = 1536;
@@ -175,6 +225,7 @@ function proceduralMapTexture(game: GameState, palette: [string, string]) {
     if (x === -40) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   }
   ctx.stroke();
+  drawMapSignature(ctx, campaignStages[game.stage - 1].rule, canvas.width, canvas.height);
   ctx.globalAlpha = .4;
   ctx.fillStyle = "#f4dda4";
   ctx.font = "34px Georgia";
@@ -192,7 +243,7 @@ function proceduralMapTexture(game: GameState, palette: [string, string]) {
   return texture;
 }
 
-export function ThreeBoard({ game, selectedId, targetIds, objectiveIds = [], overlay = "none", onSelect, reducedMotion = false }: Props) {
+export function ThreeBoard({ game, selectedId, targetIds, objectiveIds = [], intentIds = [], overlay = "none", onSelect, reducedMotion = false }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [fallback, setFallback] = useState(false);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -442,7 +493,7 @@ export function ThreeBoard({ game, selectedId, targetIds, objectiveIds = [], ove
       const threatened = territory.owner === "royal" && territory.neighbors.some(id => game.territories.find(item => item.id === id)?.owner !== "royal");
       const collection = collections.find(item => item.id === territory.collection);
       const isSelected = selectedId === territory.id;
-      const ringColor = targetIds.includes(territory.id) ? (game.phase === "fortify" ? 0xf6cf70 : 0xf04c3f) : isSelected ? 0xf6cf70 : objectiveIds.includes(territory.id) ? 0x66d9ff : overlay === "threats" && threatened ? 0xff6a58 : overlay === "collections" ? Number.parseInt((collection?.color ?? "#d6bd77").slice(1), 16) : null;
+      const ringColor = targetIds.includes(territory.id) ? (game.phase === "fortify" ? 0xf6cf70 : 0xf04c3f) : isSelected ? 0xf6cf70 : objectiveIds.includes(territory.id) ? 0x66d9ff : overlay === "threats" && intentIds.includes(territory.id) ? 0xff3f31 : overlay === "threats" && threatened ? 0xff8a58 : overlay === "collections" ? Number.parseInt((collection?.color ?? "#d6bd77").slice(1), 16) : null;
       if (ringColor !== null) {
         const ring = new THREE.Mesh(new THREE.TorusGeometry(isSelected ? .48 : objectiveIds.includes(territory.id) ? .42 : .38, isSelected ? .06 : .045, 8, 40), new THREE.MeshBasicMaterial({ color: ringColor, transparent: true, opacity: .95, depthTest: false }));
         ring.rotation.x = Math.PI / 2;
@@ -465,7 +516,7 @@ export function ThreeBoard({ game, selectedId, targetIds, objectiveIds = [], ove
         }
       });
     });
-  }, [game, selectedId, targetIds, objectiveIds, overlay]);
+  }, [game, selectedId, targetIds, objectiveIds, intentIds, overlay]);
 
   if (fallback) {
     const cells = territoryCells(game.territories);
@@ -473,7 +524,7 @@ export function ThreeBoard({ game, selectedId, targetIds, objectiveIds = [], ove
     return (
       <div className={`three-board fallback-board ${game.phase} stage-${game.stage} overlay-${overlay}`} aria-label={`Interactive illustrated map of ${stage.name}`}>
         <div className={`fallback-map-layer ${game.stage === 1 ? "" : "procedural-stage"}`} style={{ "--stage-a": stage.palette[0], "--stage-b": stage.palette[1] } as React.CSSProperties}>
-          {game.stage === 1 ? <img src="/art/vale-of-stoneford.webp" alt="" /> : <div className="procedural-map-art" aria-hidden="true"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><defs><filter id={`rough-${game.stage}`}><feTurbulence baseFrequency=".025" numOctaves="3" seed={game.stage}/><feBlend mode="soft-light" in="SourceGraphic"/></filter></defs><rect width="100" height="100" filter={`url(#rough-${game.stage})`}/><g className="stage-provinces">{cells.map(({ territory, polygon }) => <polygon key={territory.id} points={polygon.map(point => `${point.x * 100},${point.y * 100}`).join(" ")} style={{ "--province": collections.find(item => item.id === territory.collection)?.color } as React.CSSProperties}/>)}</g><path className="stage-river" d={`M -5 ${38 + game.stage % 9} C 20 ${25 + game.stage % 6}, 34 ${66 - game.stage % 7}, 55 ${47 + game.stage % 5} S 82 ${28 + game.stage % 8}, 105 ${52 - game.stage % 6}`}/><g className="stage-routes">{game.territories.flatMap(territory => territory.neighbors.filter(id => territory.id < id).map(id => { const neighbor = game.territories.find(item => item.id === id)!; return <line key={`${territory.id}-${id}`} x1={territory.x * 100} y1={territory.y * 100} x2={neighbor.x * 100} y2={neighbor.y * 100}/>; }))}</g><g className="terrain-glyphs">{game.territories.map((territory,index) => index % 4 === game.stage % 4 ? <text key={territory.id} x={territory.x * 100 + 1.8} y={territory.y * 100 - 1.8}>{terrainGlyph}</text> : null)}</g></svg><strong>{stage.name}</strong><span>{stage.ruleName}</span></div>}
+          {game.stage === 1 ? <img src="/art/vale-of-stoneford.webp" alt="" /> : <div className="procedural-map-art" aria-hidden="true"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><defs><filter id={`rough-${game.stage}`}><feTurbulence baseFrequency=".025" numOctaves="3" seed={game.stage}/><feBlend mode="soft-light" in="SourceGraphic"/></filter></defs><rect width="100" height="100" filter={`url(#rough-${game.stage})`}/><g className="stage-provinces">{cells.map(({ territory, polygon }) => <polygon key={territory.id} points={polygon.map(point => `${point.x * 100},${point.y * 100}`).join(" ")} style={{ "--province": collections.find(item => item.id === territory.collection)?.color } as React.CSSProperties}/>)}</g><path className="stage-river" d={`M -5 ${38 + game.stage % 9} C 20 ${25 + game.stage % 6}, 34 ${66 - game.stage % 7}, 55 ${47 + game.stage % 5} S 82 ${28 + game.stage % 8}, 105 ${52 - game.stage % 6}`}/><MapSignatureSvg rule={stage.rule}/><g className="stage-routes">{game.territories.flatMap(territory => territory.neighbors.filter(id => territory.id < id).map(id => { const neighbor = game.territories.find(item => item.id === id)!; return <line key={`${territory.id}-${id}`} x1={territory.x * 100} y1={territory.y * 100} x2={neighbor.x * 100} y2={neighbor.y * 100}/>; }))}</g><g className="terrain-glyphs">{game.territories.map((territory,index) => index % 4 === game.stage % 4 ? <text key={territory.id} x={territory.x * 100 + 1.8} y={territory.y * 100 - 1.8}>{terrainGlyph}</text> : null)}</g></svg><strong>{stage.name}</strong><span>{stage.ruleName}</span></div>}
           <div className="fallback-scrim" />
           {game.territories.map(territory => {
             const faction = factions[territory.owner];
@@ -481,7 +532,7 @@ export function ThreeBoard({ game, selectedId, targetIds, objectiveIds = [], ove
             return (
               <button
                 aria-label={`${territory.name}, ${army} ${army === 1 ? "unit" : "units"}, ${faction.shortName}`}
-                className={`${selectedId === territory.id ? "selected" : ""} ${targetIds.includes(territory.id) ? "target" : ""} ${objectiveIds.includes(territory.id) ? "objective" : ""} ${territory.neighbors.length <= 2 ? "chokepoint" : ""} ${territory.owner === "royal" ? "royal-army" : ""} ${territory.owner === "royal" && selectedId === territory.id && game.phase === "reinforce" ? "start-here" : ""} ${territory.owner === "royal" && territory.neighbors.some(id => game.territories.find(item => item.id === id)?.owner !== "royal") ? "threatened" : ""}`}
+                className={`${selectedId === territory.id ? "selected" : ""} ${targetIds.includes(territory.id) ? "target" : ""} ${objectiveIds.includes(territory.id) ? "objective" : ""} ${intentIds.includes(territory.id) ? "intent-target" : ""} ${territory.neighbors.length <= 2 ? "chokepoint" : ""} ${territory.owner === "royal" ? "royal-army" : ""} ${territory.owner === "royal" && selectedId === territory.id && game.phase === "reinforce" ? "start-here" : ""} ${territory.owner === "royal" && territory.neighbors.some(id => game.territories.find(item => item.id === id)?.owner !== "royal") ? "threatened" : ""}`}
                 key={territory.id}
                 onClick={() => onSelect(territory)}
                 style={{ left: `${territory.x * 100}%`, top: `${territory.y * 100}%`, "--faction": faction.color, "--metal": faction.metal } as React.CSSProperties}
