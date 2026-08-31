@@ -50,6 +50,25 @@ function playCue(cue: AudioCue, enabled: boolean) {
   if (!AudioCtx) return;
   const ctx = new AudioCtx();
   const now = ctx.currentTime;
+  if (cue === "select") {
+    const strike = (type: OscillatorType, start: number, end: number, volume: number, duration: number) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(start, now);
+      osc.frequency.exponentialRampToValueAtTime(end, now + duration);
+      gain.gain.setValueAtTime(.0001, now);
+      gain.gain.exponentialRampToValueAtTime(volume, now + .012);
+      gain.gain.exponentialRampToValueAtTime(.0001, now + duration);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + duration + .03);
+    };
+    strike("sine", 104, 48, .095, .24);
+    strike("triangle", 186, 92, .038, .15);
+    window.setTimeout(() => ctx.close(), 650);
+    return;
+  }
   const notes = cue === "battle" ? [110, 146, 196] : cue === "victory" ? [196, 247, 294, 392] : cue === "phase" ? [146, 196] : [220];
   notes.forEach((frequency, index) => {
     const osc = ctx.createOscillator();
@@ -82,7 +101,7 @@ function TitleScreen({ canContinue, hasProgress, onNew, onContinue, onAtlas, sou
         <p className="eyebrow">A single-player strategy campaign</p>
         <h1>Banners <small>of</small> Caldris</h1>
         <p className="title-subtitle">War for the Realm</p>
-        <p className="title-lede">The crown has fallen. Lead King Aldren&apos;s Royal Lions through twelve war-torn regions and reclaim Crownspire through judgement, nerve and steel.</p>
+        <p className="title-lede">The crown has fallen. Lead the Royal Lions across twelve war-torn regions and reclaim Crownspire.</p>
         <div className="title-actions">
           {canContinue ? <button className="button blue large" onClick={onContinue}>Continue campaign <ChevronRight size={19}/></button> : hasProgress ? <button className="button blue large" onClick={onAtlas}>Continue campaign <ChevronRight size={19}/></button> : <button className="button blue large" onClick={onNew}>Begin new campaign <ChevronRight size={19}/></button>}
           {hasChronicle ? <button className="button steel" onClick={() => setConfirmNew(true)}>New campaign</button> : null}
@@ -181,7 +200,7 @@ function UnitRow({ unit, count, fieldRule, active, onClick, disabled }: { unit: 
   const archerBonus = fieldRule === "high-ground" ? 2 : 1;
   const cavalryBonus = fieldRule === "forest" ? 0 : fieldRule === "wolf-charge" ? 2 : 1;
   const copy = { infantry: ["⚔", "Infantry", "Cost 1"], archers: ["➶", "Archers", `Cost 2 · +${archerBonus} defence`], cavalry: ["♞", "Cavalry", cavalryBonus ? `Cost 2 · +${cavalryBonus} attack` : "Cost 2 · no forest attack bonus"] }[unit];
-  return <button className={`unit-row ${active ? "active" : ""}`} onClick={onClick} disabled={disabled}><span>{copy[0]}</span><div><b>{copy[1]}</b><small>{copy[2]}</small></div><strong>{count}</strong></button>;
+  return <button className={`unit-row ${active ? "active" : ""}`} onClick={onClick} disabled={disabled}><span>{copy[0]}</span><div><b>{copy[1]}</b><small>{copy[2]}</small></div><span className="unit-action"><strong>{count}</strong>{!disabled ? <em>+ Reinforce</em> : null}</span></button>;
 }
 
 function reportPresentation(entry: string) {
@@ -226,10 +245,10 @@ function BoardScreen({ game, setGame, sound, setSound, reducedMotion, setReduced
   const selectedCollectionHeld = selectedCollectionMembers.filter(territory => territory.owner === "royal").length;
   const selectedCollectionMissing = selectedCollectionMembers.filter(territory => territory.owner !== "royal");
   const tutorialSteps = [
-    { icon: <Eye/>, label: "The war table", title: "Read the battlefield at a glance", copy: "Blue shields are your territories. Every shield's number is the total army stationed there. Roads and mountain passes show which territories can attack one another.", cue: "Your territory is already selected on the right. Its panel separates infantry, archers and cavalry." },
-    { icon: <Crown/>, label: "Your turn", title: "Command in three clear phases", copy: "First choose one Royal Command. Muster spends reinforcement points. Conquer lets you attack adjacent enemies. Final movement repositions one army before the rival houses act.", cue: "The phase bar at the bottom always shows what to do next." },
-    { icon: <Swords/>, label: "Your first attack", title: "Attack from strength", copy: "During Conquer, choose one of your blue territories with at least two units. Legal enemy targets gain red rings. Choose a ring, select up to three attackers, then roll or resolve the full assault.", cue: "One unit must always remain behind to hold the territory." },
-    { icon: <Target/>, label: "Win the chapter", title: stage.objective, copy: stage.objectiveDetail, cue: `Complete a coloured collection for its muster bonus. Chapter reward: ${stage.rewardDetail}` },
+    { icon: <Eye/>, label: "Find your army", title: "Blue and gold are yours", copy: "Your armies are blue shields with gold edges. The army marked YOUR ARMY is already selected; its total strength is shown on the right.", cue: "Choose a Royal Command, then click + Reinforce beside Infantry, Archers or Cavalry." },
+    { icon: <Crown/>, label: "Your turn", title: "Three phases. One clear order.", copy: "Muster your army, attack an adjacent rival, then make one final movement before the enemy houses act.", cue: "The phase bar at the bottom always shows the next action." },
+    { icon: <Swords/>, label: "Attack", title: "Strike from strength", copy: "In Conquer, select a blue army with at least two units. Legal enemy targets gain red rings. Choose one to open the battle.", cue: "One unit must remain behind to hold the territory." },
+    { icon: <Target/>, label: "Victory", title: stage.objective, copy: stage.objectiveDetail, cue: `Secure coloured collections to earn more reinforcements.` },
   ];
   const targetIds = useMemo(() => {
     if (game.phase === "attack" && attackFrom) return attackFrom.neighbors.filter(id => game.territories.find(t => t.id === id)?.owner !== "royal");
@@ -341,7 +360,7 @@ function BoardScreen({ game, setGame, sound, setSound, reducedMotion, setReduced
         <div className="faction-order">{(["royal","wolves","boars","serpents"] as FactionId[]).map(f => <FactionShield key={f} faction={f} active={game.activeFaction === f}/>)}</div>
       </header>
 
-      <div className="board-key" aria-label="Map key"><span><i className="key-shield"/>Blue shield = your army</span><span><b>5</b>Number = total units</span><span><Route/>Road = legal route</span></div>
+      <div className="board-key" aria-label="Map key"><span><i className="key-shield"/>Blue = your army</span><span><b>5</b>Number = units</span><span><Route/>Road = move or attack</span></div>
       <div className="map-tools" aria-label="Map overlays">
         {([
           ["routes", <Route key="route"/>, "Routes"],
@@ -350,20 +369,23 @@ function BoardScreen({ game, setGame, sound, setSound, reducedMotion, setReduced
         ] as [MapOverlay, React.ReactNode, string][]).map(([id,icon,label]) => <button key={id} aria-pressed={mapOverlay === id} onClick={() => setMapOverlay(current => current === id ? "none" : id)}>{icon}<span>{label}</span></button>)}
       </div>
 
-      {game.phase === "reinforce" && !game.kingsOrder && tutorialStep < 0 && !enemyReport ? <section className="kings-order-choice" aria-labelledby="kings-order-title"><p className="eyebrow">Choose one command for this turn</p><h2 id="kings-order-title">Choose a Royal Command</h2><div>{([
+      {game.phase === "reinforce" && !game.kingsOrder && tutorialStep < 0 && !enemyReport ? <section className="kings-order-choice" aria-labelledby="kings-order-title"><p className="eyebrow">Step 1 · choose one command</p><h2 id="kings-order-title">Choose a Royal Command</h2><div>{([
         ["levy", "⚑", "Call the Banners", "+2 muster points now"],
         ["vanguard", "♞", "Ride at Dawn", "Cavalry gain +1 extra in your first battle"],
         ["bastion", "♜", "Hold the Line", "Archers gain +1 extra in the first enemy assault"],
-      ] as [KingsOrder,string,string,string][]).map(([id,glyph,name,detail]) => <button key={id} onClick={() => { setGame(chooseKingsOrder(game,id)); playCue("phase",sound); }}><span>{glyph}</span><b>{name}</b><small>{detail}</small></button>)}</div><p>Only one Royal Command may be sealed each turn.</p></section> : null}
+      ] as [KingsOrder,string,string,string][]).map(([id,glyph,name,detail]) => <button key={id} onClick={() => { setGame(chooseKingsOrder(game,id)); setSelectedId(game.territories.find(territory => territory.owner === "royal")?.id ?? null); playCue("phase",sound); }}><span>{glyph}</span><b>{name}</b><small>{detail}</small></button>)}</div><p>Next: reinforce the selected blue army.</p></section> : null}
 
-      <aside className="objective-card parchment-panel"><p className="eyebrow">Campaign objective</p><h2>{stage.objective}</h2><p>{stage.objectiveDetail}</p><p><strong>{stage.ruleName}:</strong> {stage.ruleDetail}</p>{game.campaignWins ? <small className="legacy-bonus">Legacy · {campaignLegacySummary(game.campaignWins)}</small> : null}<div className="objective-progress"><span>{objectiveProgress.label}</span><b>{royalCollections.length} / 6 collections</b></div></aside>
+      {game.phase === "reinforce" && game.kingsOrder && game.reinforcements > 0 && !enemyReport ? <div className="muster-guide"><Shield/><div><b>2 · Reinforce your army</b><span>Use <strong>+ Reinforce</strong> in the panel on the right.</span></div></div> : null}
+
+      <aside className="objective-card parchment-panel"><p className="eyebrow">Objective</p><h2>{stage.objective}</h2><p>{stage.objectiveDetail}</p><div className="objective-progress"><span>{objectiveProgress.label}</span><b>{royalCollections.length} / 6 collections</b></div></aside>
 
       <aside className="territory-panel">
         {selected ? <>
-          <div className="territory-heading" style={{ "--owner": factions[selected.owner].color } as React.CSSProperties}><FactionShield faction={selected.owner}/><div><small>{collections.find(c => c.id === selected.collection)?.name}</small><h2>{selected.name}</h2></div></div>
+          <div className="territory-heading" style={{ "--owner": factions[selected.owner].color } as React.CSSProperties}><FactionShield faction={selected.owner}/><div><small>{selected.owner === "royal" ? "Your army" : factions[selected.owner].shortName}</small><h2>{selected.name}</h2></div></div>
           <div className="territory-summary"><span>Army strength</span><b>{totalUnits(selected.units)}</b></div>
+          {selected.owner === "royal" && game.phase === "reinforce" ? <div className="reinforce-heading"><b>Reinforce here</b><span>{game.reinforcements} points left</span></div> : null}
           <div className="unit-list">
-            {(["infantry","archers","cavalry"] as UnitType[]).map(unit => <UnitRow key={unit} unit={unit} count={selected.units[unit]} fieldRule={stage.rule} disabled={game.phase !== "reinforce" || selected.owner !== "royal" || game.reinforcements < unitCost(unit)} onClick={() => setGame(reinforce(game, selected.id, unit))}/>) }
+            {(["infantry","archers","cavalry"] as UnitType[]).map(unit => <UnitRow key={unit} unit={unit} count={selected.units[unit]} fieldRule={stage.rule} disabled={game.phase !== "reinforce" || !game.kingsOrder || selected.owner !== "royal" || game.reinforcements < unitCost(unit)} onClick={() => { setGame(reinforce(game, selected.id, unit)); playCue("select", sound); }}/>) }
           </div>
           {selectedCollection ? <div className="collection-progress"><div><span>{selectedCollection.name}</span><b>{selectedCollectionHeld}/{selectedCollectionMembers.length} held · +{selectedCollection.bonus} muster</b></div><div className="collection-track"><i style={{ width: `${selectedCollectionHeld / selectedCollectionMembers.length * 100}%` }}/></div>{selectedCollectionMissing.length ? <small>Still needed: {selectedCollectionMissing.slice(0,3).map(item => item.name).join(", ")}{selectedCollectionMissing.length > 3 ? ` +${selectedCollectionMissing.length - 3} more` : ""}</small> : <small>Collection secured. Defend it to keep the bonus.</small>}</div> : null}
           <div className="connections"><span>Connected territories</span><div>{selected.neighbors.map(id => <button key={id} onClick={() => selectTerritory(game.territories.find(t => t.id === id)!)}>{game.territories.find(t => t.id === id)?.name}</button>)}</div></div>
@@ -371,8 +393,7 @@ function BoardScreen({ game, setGame, sound, setSound, reducedMotion, setReduced
           {game.phase === "fortify" && game.fortifiedThisTurn ? <div className="panel-callout movement-done"><Shield/><span>Final movement complete. End the turn when your borders are ready.</span></div> : null}
           {game.phase === "fortify" && fortifyFrom && selected.owner === "royal" && selected.id !== fortifyFrom.id ? <div className="fortify-picker"><div><span>Move from {fortifyFrom.name}</span><b>{totalUnits(fortifyUnits)} selected</b></div>{(["infantry","archers","cavalry"] as UnitType[]).map(unit => <div className="fortify-unit" key={unit}><span>{unit}</span><button aria-label={`Remove ${unit} from movement`} onClick={() => changeFortifyUnit(unit,-1)}>−</button><b>{fortifyUnits[unit]}</b><button aria-label={`Add ${unit} to movement`} onClick={() => changeFortifyUnit(unit,1)}>+</button></div>)}<button className="button gold wide" disabled={totalUnits(fortifyUnits) < 1} onClick={confirmFortify}><Move size={17}/> Confirm final movement</button></div> : null}
           {game.phase === "fortify" && fortifyFrom && selected.id === fortifyFrom.id ? <div className="panel-callout"><Move/><span>Choose any gold-linked royal territory, then decide exactly which units march there{Number.isFinite(movementLimit) ? ` (maximum ${movementLimit})` : ""}.</span></div> : null}
-        </> : <div className="empty-selection"><Shield/><h2>Select a territory</h2><p>Inspect its army, routes and collection.</p></div>}
-        <div className="war-log"><span>Dispatches</span>{game.log.slice(0,4).map((entry,i) => <p key={i}>{entry}</p>)}</div>
+        </> : <div className="empty-selection"><Shield/><h2>Select a territory</h2><p>Choose a shield on the map.</p></div>}
       </aside>
 
       <nav className="phase-bar" aria-label="Turn phases">

@@ -23,7 +23,7 @@ export default function ProgressPage() {
         <p className="eyebrow">Live forge ledger</p>
         <h1>Building Banners of Caldris</h1>
         <p>A playable campaign is in the forge. Every system is tested on its own, then judged again as part of the full game.</p>
-        <div className="release-status"><span className="pulse-dot"/> Onboarding and campaign-depth pass · validating</div>
+        <div className="release-status"><span className="pulse-dot"/> Opening clarity and command feedback · validating</div>
       </header>
 
       <section className="progress-principles">
@@ -33,7 +33,7 @@ export default function ProgressPage() {
       </section>
 
       <section className="progress-ledger">
-        <div className="ledger-heading"><div><p className="eyebrow">Current systems</p><h2>The campaign, piece by piece</h2></div><span>Updated 30 Aug 2026 · Clarity pass</span></div>
+        <div className="ledger-heading"><div><p className="eyebrow">Current systems</p><h2>The campaign, piece by piece</h2></div><span>Updated 31 Aug 2026 · Command clarity pass</span></div>
         <div className="ledger-grid">
           {systems.map((system, index) => (
             <article className="ledger-item" key={system.name}>
@@ -46,8 +46,8 @@ export default function ProgressPage() {
       </section>
 
       <section className="progress-now">
-        <div><p className="eyebrow">Current pass · comprehension before command</p><h2>The game now explains why the war matters</h2><p>A cinematic illustrated prologue establishes the conflict before the campaign atlas. The first battlefield opens with a four-step tutorial, a permanent map key, objective markers and optional route, collection and threat overlays. Every chapter now asks for a different strategic feat and grants a named campaign reward.</p></div>
-        <ol><li><b>01</b> Stable, atomic unit-marker updates remove distracting flicker</li><li><b>02</b> Doctrine-led enemies report actions one at a time on the map</li><li><b>03</b> Dark-blue interface and clean sans-serif opening screen</li></ol>
+        <div><p className="eyebrow">Current pass · the first command</p><h2>Your army and next action are unmistakable</h2><p>The opening tutorial now points directly to a labelled Royal Lions army. Choosing a command leads into a prominent reinforcement prompt, with larger unit counts and explicit action labels in the army panel. Secondary battlefield text has been cut so the objective and next decision dominate.</p></div>
+        <ol><li><b>01</b> Graver title typography gives the campaign a stronger identity</li><li><b>02</b> Labelled starting army and guided reinforcement flow</li><li><b>03</b> Weightier command sound and larger essential battlefield text</li></ol>
       </section>
     </main>
   );

@@ -80,7 +80,29 @@ function numberSprite(value: number, foreground: string, stroke: string) {
   texture.colorSpace = THREE.SRGBColorSpace;
   const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
   const sprite = new THREE.Sprite(material);
-  sprite.scale.set(.58, .58, .58);
+  sprite.scale.set(.7, .7, .7);
+  return sprite;
+}
+
+function commandLabelSprite(text: string) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 384;
+  canvas.height = 96;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "rgba(7,48,77,.96)";
+  ctx.strokeStyle = "#8edcf6";
+  ctx.lineWidth = 5;
+  ctx.fillRect(4, 4, 376, 88);
+  ctx.strokeRect(4, 4, 376, 88);
+  ctx.fillStyle = "#f5fbff";
+  ctx.font = "800 35px Arial";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, 192, 50);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }));
+  sprite.scale.set(1.5, .38, 1);
   return sprite;
 }
 
@@ -392,11 +414,11 @@ export function ThreeBoard({ game, selectedId, targetIds, objectiveIds = [], ove
       const faction = factions[territory.owner];
       const isSerpent = territory.owner === "serpents";
       const baseMaterial = new THREE.MeshStandardMaterial({ color: faction.color, roughness: .45, metalness: .35, emissive: selectedId === territory.id ? 0x4b3510 : 0x000000, emissiveIntensity: selectedId === territory.id ? .9 : 0 });
-      const base = new THREE.Mesh(new THREE.CylinderGeometry(.22, .27, .16, 12), baseMaterial);
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(.24, .29, .17, 12), baseMaterial);
       base.castShadow = true;
       base.userData.territoryId = territory.id;
       marker.add(base);
-      const rim = new THREE.Mesh(new THREE.TorusGeometry(.245, .025, 8, 24), new THREE.MeshStandardMaterial({ color: faction.metal, metalness: .75, roughness: .25 }));
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(.27, .027, 8, 24), new THREE.MeshStandardMaterial({ color: faction.metal, metalness: .75, roughness: .25 }));
       rim.rotation.x = Math.PI / 2;
       rim.position.y = .09;
       rim.userData.territoryId = territory.id;
@@ -412,11 +434,17 @@ export function ThreeBoard({ game, selectedId, targetIds, objectiveIds = [], ove
       sprite.position.set(-.08, .52, 0);
       sprite.userData.territoryId = territory.id;
       marker.add(sprite);
+      if (selectedId === territory.id && territory.owner === "royal" && game.phase === "reinforce") {
+        const label = commandLabelSprite("YOUR ARMY");
+        label.position.set(0, 1.02, 0);
+        marker.add(label);
+      }
       const threatened = territory.owner === "royal" && territory.neighbors.some(id => game.territories.find(item => item.id === id)?.owner !== "royal");
       const collection = collections.find(item => item.id === territory.collection);
-      const ringColor = targetIds.includes(territory.id) ? (game.phase === "fortify" ? 0xf6cf70 : 0xf04c3f) : objectiveIds.includes(territory.id) ? 0x66d9ff : overlay === "threats" && threatened ? 0xff6a58 : overlay === "collections" ? Number.parseInt((collection?.color ?? "#d6bd77").slice(1), 16) : selectedId === territory.id ? 0xf6cf70 : null;
+      const isSelected = selectedId === territory.id;
+      const ringColor = targetIds.includes(territory.id) ? (game.phase === "fortify" ? 0xf6cf70 : 0xf04c3f) : isSelected ? 0xf6cf70 : objectiveIds.includes(territory.id) ? 0x66d9ff : overlay === "threats" && threatened ? 0xff6a58 : overlay === "collections" ? Number.parseInt((collection?.color ?? "#d6bd77").slice(1), 16) : null;
       if (ringColor !== null) {
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(objectiveIds.includes(territory.id) ? .42 : .36, .045, 8, 40), new THREE.MeshBasicMaterial({ color: ringColor, transparent: true, opacity: .95, depthTest: false }));
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(isSelected ? .48 : objectiveIds.includes(territory.id) ? .42 : .38, isSelected ? .06 : .045, 8, 40), new THREE.MeshBasicMaterial({ color: ringColor, transparent: true, opacity: .95, depthTest: false }));
         ring.rotation.x = Math.PI / 2;
         ring.position.y = -.15;
         marker.add(ring);
@@ -453,7 +481,7 @@ export function ThreeBoard({ game, selectedId, targetIds, objectiveIds = [], ove
             return (
               <button
                 aria-label={`${territory.name}, ${army} ${army === 1 ? "unit" : "units"}, ${faction.shortName}`}
-                className={`${selectedId === territory.id ? "selected" : ""} ${targetIds.includes(territory.id) ? "target" : ""} ${objectiveIds.includes(territory.id) ? "objective" : ""} ${territory.neighbors.length <= 2 ? "chokepoint" : ""} ${territory.owner === "royal" && territory.neighbors.some(id => game.territories.find(item => item.id === id)?.owner !== "royal") ? "threatened" : ""}`}
+                className={`${selectedId === territory.id ? "selected" : ""} ${targetIds.includes(territory.id) ? "target" : ""} ${objectiveIds.includes(territory.id) ? "objective" : ""} ${territory.neighbors.length <= 2 ? "chokepoint" : ""} ${territory.owner === "royal" ? "royal-army" : ""} ${territory.owner === "royal" && selectedId === territory.id && game.phase === "reinforce" ? "start-here" : ""} ${territory.owner === "royal" && territory.neighbors.some(id => game.territories.find(item => item.id === id)?.owner !== "royal") ? "threatened" : ""}`}
                 key={territory.id}
                 onClick={() => onSelect(territory)}
                 style={{ left: `${territory.x * 100}%`, top: `${territory.y * 100}%`, "--faction": faction.color, "--metal": faction.metal } as React.CSSProperties}
