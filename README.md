@@ -56,6 +56,15 @@ Open the local URL printed by Vite. To run the production build plus all determi
 npm test
 ```
 
+## Deployment
+
+The project builds for two hosts:
+
+- **ChatGPT Sites / Cloudflare Workers** (`npm run build`) — runs `vinext build` through `scripts/build-verified.sh`, producing the `dist/` Worker bundle used by `worker/index.ts`.
+- **Vercel** (`next build`) — `vercel.json` pins the build command so Vercel produces a standard `.next` output instead of the Worker bundle. The Vercel build never touches the Cloudflare-only sources (`worker/`, `db/`, `examples/`), which are excluded from `tsconfig.json`.
+
+The shell scripts under `scripts/` must stay executable in git (mode `100755`); CI hosts execute them directly and a non-executable mode fails the build with exit code 126.
+
 ## Architecture
 
 - `lib/game.ts` — deterministic campaign state, topology, combat, reinforcement, fortification, and rival AI
