@@ -3,6 +3,7 @@ export type UnitType = "infantry" | "archers" | "cavalry";
 export type Phase = "reinforce" | "attack" | "fortify" | "enemy" | "victory" | "defeat";
 export type KingsOrder = "levy" | "vanguard" | "bastion";
 export type CampaignRule = "standard" | "riches" | "causeways" | "high-ground" | "forest" | "wolf-charge" | "bridge-tolls" | "frontier" | "winter" | "fractured" | "royal-road" | "citadel";
+export type VictoryKind = "conquest" | "territories" | "eliminate-wolves" | "survive" | "eliminate-two";
 
 export type Units = Record<UnitType, number>;
 
@@ -40,7 +41,12 @@ export interface CampaignStage {
   name: string;
   act: string;
   objective: string;
+  objectiveDetail: string;
+  victoryKind: VictoryKind;
+  objectiveTerritories?: string[];
+  targetTurn?: number;
   reward: string;
+  rewardDetail: string;
   briefing: string;
   palette: [string, string];
   difficulty: number;
@@ -69,6 +75,7 @@ export interface BattleResult {
   attackerLosses: UnitType[];
   defenderLosses: UnitType[];
   captured: boolean;
+  rounds?: number;
 }
 
 export interface GameState {
@@ -140,18 +147,18 @@ export const collections: Collection[] = [
 ];
 
 export const campaignStages: CampaignStage[] = [
-  { id: 1, name: "The Vale of Stoneford", act: "Act I — Secure the Heartlands", objective: "Unite the Vale", reward: "The King's Favour", briefing: "The royal standard has returned to Stoneford. Break the three rival hosts before they divide the Vale beyond repair.", palette: ["#365a36", "#bc8b46"], difficulty: 1, rule: "standard", ruleName: "Open heartlands", ruleDetail: "No field modifier. Learn the roads, collections and rival doctrines." },
-  { id: 2, name: "The Amber Coast", act: "Act I — Secure the Heartlands", objective: "Seize the western ports", reward: "Coastal Muster", briefing: "The Amber League controls the grain fleet. Capture its ports before Crownspire buys their loyalty.", palette: ["#a8782c", "#1d6172"], difficulty: 1.15, rule: "riches", ruleName: "Merchant granaries", ruleDetail: "Every faction gains +1 muster point while the coast remains contested." },
-  { id: 3, name: "The Fenward", act: "Act I — Secure the Heartlands", objective: "Open the causeways", reward: "Fen Scouts", briefing: "Marsh wardens hold every dry road. Advance carefully: a narrow victory can leave the army stranded.", palette: ["#315f58", "#73845c"], difficulty: 1.25, rule: "causeways", ruleName: "Narrow causeways", ruleDetail: "Final movement is limited to three units, even across a connected realm." },
-  { id: 4, name: "The Ironspine", act: "Act I — Secure the Heartlands", objective: "Break the mountain gates", reward: "Iron Levy", briefing: "House Brannoc and the Cairnborn guard the passes. No road north is open while Ironspine stands.", palette: ["#52585b", "#8a6545"], difficulty: 1.35, rule: "high-ground", ruleName: "High ground", ruleDetail: "Archers gain a second defence bonus in every mountain assault." },
-  { id: 5, name: "The Greenwood", act: "Act II — Break the Rival Crowns", objective: "Cross the ancient forest", reward: "Alder Bows", briefing: "The Briar Court has closed the old king's road. Their quarrel is older than Aldren's crown.", palette: ["#214f32", "#758544"], difficulty: 1.45, rule: "forest", ruleName: "Briar canopy", ruleDetail: "Dense forest suppresses cavalry's normal attack bonus." },
-  { id: 6, name: "The Red Plains", act: "Act II — Break the Rival Crowns", objective: "Defeat the Red Wolf", reward: "Veteran Cavalry", briefing: "Lady Mara Veyr waits on open ground. She intends to end the march in one decisive charge.", palette: ["#873928", "#aa7c3e"], difficulty: 1.55, rule: "wolf-charge", ruleName: "Open country", ruleDetail: "All cavalry gain a second attack bonus on the open plain." },
-  { id: 7, name: "The Lakelands", act: "Act II — Break the Rival Crowns", objective: "Control every crossing", reward: "River Engineers", briefing: "White Serpent banners rise on the islands. Each bridge taken exposes another flank.", palette: ["#2a6981", "#6d7652"], difficulty: 1.65, rule: "bridge-tolls", ruleName: "Bridge tolls", ruleDetail: "Each complete territorial collection is worth +1 additional muster point." },
-  { id: 8, name: "The Border March", act: "Act II — Break the Rival Crowns", objective: "Hold the frontier wall", reward: "Marcher Guard", briefing: "Vane's agents have opened the frontier. Take the forts before the northern host arrives.", palette: ["#4f4a3d", "#9b6a35"], difficulty: 1.75, rule: "frontier", ruleName: "Frontier alarm", ruleDetail: "Every rival house receives +1 muster point each enemy turn." },
-  { id: 9, name: "The Frostlands", act: "Act III — Reclaim the Kingdom", objective: "Survive the winter war", reward: "Winter Supply", briefing: "Snow closes behind the army. Victory must come before the last stores are gone.", palette: ["#a9bdc6", "#3c5665"], difficulty: 1.9, rule: "winter", ruleName: "Last stores", ruleDetail: "Every faction loses 1 muster point, though the minimum remains three." },
-  { id: 10, name: "The Broken Duchies", act: "Act III — Reclaim the Kingdom", objective: "Unseat the rival dukes", reward: "Ducal Levies", briefing: "Five ruined courts claim the same inheritance. Their war has no front and no rules.", palette: ["#51463d", "#7e332b"], difficulty: 2.05, rule: "fractured", ruleName: "Endless claimants", ruleDetail: "The minimum muster rises to four for every surviving house." },
-  { id: 11, name: "The King's Road", act: "Act III — Reclaim the Kingdom", objective: "Open the road to Crownspire", reward: "Royal Vanguard", briefing: "The capital is visible beyond the forts. Vane has placed his finest army across the road.", palette: ["#5d5142", "#b28b3e"], difficulty: 2.2, rule: "royal-road", ruleName: "The royal road", ruleDetail: "The Royal Lions gain +1 muster point while their roadward banners survive." },
-  { id: 12, name: "Crownspire", act: "Act III — Reclaim the Kingdom", objective: "Take the Black Crown", reward: "The Realm Restored", briefing: "Cassian Vane waits within the royal citadel. Every oath and casualty has led to this final field.", palette: ["#25252d", "#8b332b"], difficulty: 2.4, rule: "citadel", ruleName: "The Black Citadel", ruleDetail: "Rival garrisons begin reinforced and receive +2 muster points each turn." },
+  { id: 1, name: "The Vale of Stoneford", act: "Act I — Secure the Heartlands", objective: "Unite the Vale", objectiveDetail: "Control all 32 territories and break every rival banner.", victoryKind: "conquest", reward: "The King's Favour", rewardDetail: "+1 infantry joins the opening stronghold in every later chapter.", briefing: "The royal standard has returned to Stoneford. Break the three rival hosts before they divide the Vale beyond repair.", palette: ["#365a36", "#bc8b46"], difficulty: 1, rule: "standard", ruleName: "Open heartlands", ruleDetail: "No field modifier. Learn the roads, collections and rival doctrines." },
+  { id: 2, name: "The Amber Coast", act: "Act I — Secure the Heartlands", objective: "Seize the western ports", objectiveDetail: "Control Amber Watch, Saltwind Beacon and Amber Market.", victoryKind: "territories", objectiveTerritories: ["northwatch", "seawatch", "crownmarket"], reward: "Coastal Muster", rewardDetail: "+1 muster point on every later turn.", briefing: "The Amber League controls the grain fleet. Capture its ports before Crownspire buys their loyalty.", palette: ["#a8782c", "#1d6172"], difficulty: 1.15, rule: "riches", ruleName: "Merchant granaries", ruleDetail: "Every faction gains +1 muster point while the coast remains contested." },
+  { id: 3, name: "The Fenward", act: "Act I — Secure the Heartlands", objective: "Open the causeways", objectiveDetail: "Control the three marked causeways through the marsh.", victoryKind: "territories", objectiveTerritories: ["kings-crossing", "oldbridge", "ashbridge"], reward: "Fen Scouts", rewardDetail: "+1 archer joins the opening stronghold in later chapters.", briefing: "Marsh wardens hold every dry road. Advance carefully: a narrow victory can leave the army stranded.", palette: ["#315f58", "#73845c"], difficulty: 1.25, rule: "causeways", ruleName: "Narrow causeways", ruleDetail: "Final movement is limited to three units, even across a connected realm." },
+  { id: 4, name: "The Ironspine", act: "Act I — Secure the Heartlands", objective: "Break the mountain gates", objectiveDetail: "Capture Iron Pass, Raven's Gate and Southgate.", victoryKind: "territories", objectiveTerritories: ["iron-pass", "ravens-gate", "southgate"], reward: "Iron Levy", rewardDetail: "+2 infantry join the opening stronghold in later chapters.", briefing: "House Brannoc and the Cairnborn guard the passes. No road north is open while Ironspine stands.", palette: ["#52585b", "#8a6545"], difficulty: 1.35, rule: "high-ground", ruleName: "High ground", ruleDetail: "Archers gain a second defence bonus in every mountain assault." },
+  { id: 5, name: "The Greenwood", act: "Act II — Break the Rival Crowns", objective: "Cross the ancient forest", objectiveDetail: "Take the three forest seats controlling the old king's road.", victoryKind: "territories", objectiveTerritories: ["elderwood", "oakridge", "thornkeep"], reward: "Alder Bows", rewardDetail: "+1 archer joins the opening stronghold in later chapters.", briefing: "The Briar Court has closed the old king's road. Their quarrel is older than Aldren's crown.", palette: ["#214f32", "#758544"], difficulty: 1.45, rule: "forest", ruleName: "Briar canopy", ruleDetail: "Dense forest suppresses cavalry's normal attack bonus." },
+  { id: 6, name: "The Red Plains", act: "Act II — Break the Rival Crowns", objective: "Defeat the Red Wolf", objectiveDetail: "Remove every Red Wolf banner from the plain.", victoryKind: "eliminate-wolves", reward: "Veteran Cavalry", rewardDetail: "+1 cavalry joins the opening stronghold in later chapters.", briefing: "Lady Mara Veyr waits on open ground. She intends to end the march in one decisive charge.", palette: ["#873928", "#aa7c3e"], difficulty: 1.55, rule: "wolf-charge", ruleName: "Open country", ruleDetail: "All cavalry gain a second attack bonus on the open plain." },
+  { id: 7, name: "The Lakelands", act: "Act II — Break the Rival Crowns", objective: "Control every crossing", objectiveDetail: "Control King's Crossing, Oldbridge and Ashbridge.", victoryKind: "territories", objectiveTerritories: ["kings-crossing", "oldbridge", "ashbridge"], reward: "River Engineers", rewardDetail: "Every complete collection grants +1 additional muster in later chapters.", briefing: "White Serpent banners rise on the islands. Each bridge taken exposes another flank.", palette: ["#2a6981", "#6d7652"], difficulty: 1.65, rule: "bridge-tolls", ruleName: "Bridge tolls", ruleDetail: "Each complete territorial collection is worth +1 additional muster point." },
+  { id: 8, name: "The Border March", act: "Act II — Break the Rival Crowns", objective: "Hold the frontier wall", objectiveDetail: "Capture Northwatch, Iron Pass and Southgate before the frontier host gathers.", victoryKind: "territories", objectiveTerritories: ["northwatch", "iron-pass", "southgate"], reward: "Marcher Guard", rewardDetail: "+1 infantry joins the opening stronghold in later chapters.", briefing: "Vane's agents have opened the frontier. Take the forts before the northern host arrives.", palette: ["#4f4a3d", "#9b6a35"], difficulty: 1.75, rule: "frontier", ruleName: "Frontier alarm", ruleDetail: "Every rival house receives +1 muster point each enemy turn." },
+  { id: 9, name: "The Frostlands", act: "Act III — Reclaim the Kingdom", objective: "Survive the winter war", objectiveDetail: "Hold at least 16 territories when turn 5 begins.", victoryKind: "survive", targetTurn: 5, reward: "Winter Supply", rewardDetail: "The Royal Lions' minimum muster rises to 4 in later chapters.", briefing: "Snow closes behind the army. Victory must come before the last stores are gone.", palette: ["#a9bdc6", "#3c5665"], difficulty: 1.9, rule: "winter", ruleName: "Last stores", ruleDetail: "Every faction loses 1 muster point, though the minimum remains three." },
+  { id: 10, name: "The Broken Duchies", act: "Act III — Reclaim the Kingdom", objective: "Unseat the rival dukes", objectiveDetail: "Eliminate any two rival houses from the map.", victoryKind: "eliminate-two", reward: "Ducal Levies", rewardDetail: "+1 muster point on every later turn.", briefing: "Five ruined courts claim the same inheritance. Their war has no front and no rules.", palette: ["#51463d", "#7e332b"], difficulty: 2.05, rule: "fractured", ruleName: "Endless claimants", ruleDetail: "The minimum muster rises to four for every surviving house." },
+  { id: 11, name: "The King's Road", act: "Act III — Reclaim the Kingdom", objective: "Open the road to Crownspire", objectiveDetail: "Control the five marked roadward territories from Stoneford to Southgate.", victoryKind: "territories", objectiveTerritories: ["stoneford", "kings-crossing", "crownmarket", "oldbridge", "southgate"], reward: "Royal Vanguard", rewardDetail: "+1 cavalry joins the opening stronghold in Crownspire.", briefing: "The capital is visible beyond the forts. Vane has placed his finest army across the road.", palette: ["#5d5142", "#b28b3e"], difficulty: 2.2, rule: "royal-road", ruleName: "The royal road", ruleDetail: "The Royal Lions gain +1 muster point while their roadward banners survive." },
+  { id: 12, name: "Crownspire", act: "Act III — Reclaim the Kingdom", objective: "Take the Black Crown", objectiveDetail: "Capture the three citadel districts: Black Pass, Vane Market and Final Mere.", victoryKind: "territories", objectiveTerritories: ["iron-pass", "crownmarket", "mereham"], reward: "The Realm Restored", rewardDetail: "Caldris is reunited beneath the Royal Lion.", briefing: "Cassian Vane waits within the royal citadel. Every oath and casualty has led to this final field.", palette: ["#25252d", "#8b332b"], difficulty: 2.4, rule: "citadel", ruleName: "The Black Citadel", ruleDetail: "Rival garrisons begin reinforced and receive +2 muster points each turn." },
 ];
 
 const nodes: Array<[string, string, number, number, string]> = [
@@ -260,6 +267,31 @@ function buildRegionalEdges(stage: number, points: Array<{ id: string; x: number
 
 const unitTypeOrder: UnitType[] = ["infantry", "archers", "cavalry"];
 
+export function campaignRewardBonuses(campaignWins: number) {
+  const openingUnits: Units = { infantry: 0, archers: 0, cavalry: 0 };
+  if (campaignWins >= 1) openingUnits.infantry += 1;
+  if (campaignWins >= 3) openingUnits.archers += 1;
+  if (campaignWins >= 4) openingUnits.infantry += 2;
+  if (campaignWins >= 5) openingUnits.archers += 1;
+  if (campaignWins >= 6) openingUnits.cavalry += 1;
+  if (campaignWins >= 8) openingUnits.infantry += 1;
+  if (campaignWins >= 11) openingUnits.cavalry += 1;
+  return {
+    openingUnits,
+    musterBonus: (campaignWins >= 2 ? 1 : 0) + (campaignWins >= 10 ? 1 : 0),
+    collectionBonus: campaignWins >= 7 ? 1 : 0,
+    minimumMuster: campaignWins >= 9 ? 4 : 3,
+  };
+}
+
+export function campaignLegacySummary(campaignWins: number): string {
+  if (!campaignWins) return "No campaign rewards unlocked";
+  const bonuses = campaignRewardBonuses(campaignWins);
+  const units = unitTypeOrder.filter(unit => bonuses.openingUnits[unit]).map(unit => `+${bonuses.openingUnits[unit]} ${unit}`);
+  const income = bonuses.musterBonus ? `+${bonuses.musterBonus} muster` : null;
+  return [...units, income].filter(Boolean).join(" · ");
+}
+
 function startingUnits(index: number, faction: FactionId, difficulty: number, stage: number): Units {
   const base = 3 + (index % 3);
   const enemyBoost = faction === "royal" ? 0 : Math.floor((difficulty - 1) * 2) + (stage === 12 ? 1 : 0);
@@ -277,12 +309,12 @@ export function createGame(stage = 1, campaignWins = 0, preview = false): GameSt
   });
   const royalStronghold = regionalNodes.find(node => node.owner === "royal");
   if (royalStronghold) {
-    const veteranUnits = Math.floor(campaignWins / 2);
-    for (let index = 0; index < veteranUnits; index++) royalStronghold.units[unitTypeOrder[index % unitTypeOrder.length]] += 1;
+    const rewards = campaignRewardBonuses(campaignWins);
+    unitTypeOrder.forEach(unit => { royalStronghold.units[unit] += rewards.openingUnits[unit]; });
   }
   const regionalEdges = buildRegionalEdges(stage, regionalNodes);
   const territories: Territory[] = regionalNodes.map(node => ({ ...node, neighbors: regionalEdges.filter(([a,b]) => a === node.id || b === node.id).map(([a,b]) => a === node.id ? b : a) }));
-  const legacy = campaignWins ? ` ${Math.floor(campaignWins / 2)} veteran units and +${Math.floor(campaignWins / 4)} muster arrive from earlier victories.` : "";
+  const legacy = campaignWins ? ` Campaign rewards: ${campaignLegacySummary(campaignWins)}.` : "";
   const state: GameState = { stage, turn: 1, phase: "reinforce", activeFaction: "royal", reinforcements: 0, fortifiedThisTurn: false, kingsOrder: null, kingsOrderUsed: false, territories, campaignWins, preview, seed: 1069 + stage * 97, log: [`${campaignStages[stage - 1]?.ruleName ?? "Royal banners"}: ${campaignStages[stage - 1]?.ruleDetail ?? "The campaign begins."}${legacy}`] };
   state.reinforcements = reinforcementIncome(state, "royal");
   return state;
@@ -306,7 +338,8 @@ export function controlledCollections(state: GameState, faction: FactionId): Col
 export function reinforcementIncome(state: GameState, faction: FactionId): number {
   const territories = state.territories.filter(t => t.owner === faction).length;
   const stage = campaignStages[state.stage - 1];
-  const minimum = stage?.rule === "fractured" ? 4 : 3;
+  const rewardBonuses = campaignRewardBonuses(state.campaignWins);
+  const minimum = Math.max(stage?.rule === "fractured" ? 4 : 3, faction === "royal" ? rewardBonuses.minimumMuster : 3);
   const base = Math.max(minimum, Math.floor(territories / 3));
   const held = controlledCollections(state, faction);
   let income = base + held.reduce((sum, c) => sum + c.bonus, 0);
@@ -316,7 +349,10 @@ export function reinforcementIncome(state: GameState, faction: FactionId): numbe
   if (stage?.rule === "winter") income = Math.max(3, income - 1);
   if (stage?.rule === "royal-road" && faction === "royal") income += 1;
   if (stage?.rule === "citadel" && faction !== "royal") income += 2;
-  if (faction === "royal") income += Math.floor(state.campaignWins / 4);
+  if (faction === "royal") {
+    income += rewardBonuses.musterBonus;
+    income += held.length * rewardBonuses.collectionBonus;
+  }
   return income;
 }
 
@@ -332,7 +368,7 @@ export function chooseKingsOrder(state: GameState, order: KingsOrder): GameState
     kingsOrder: order,
     kingsOrderUsed: order === "levy",
     reinforcements: state.reinforcements + (order === "levy" ? 2 : 0),
-    log: [`King's Order — ${names[order]}${order === "levy" ? ": 2 additional muster points." : "."}`, ...state.log],
+    log: [`Royal Command — ${names[order]}${order === "levy" ? ": 2 additional muster points." : "."}`, ...state.log],
   };
 }
 
@@ -426,6 +462,34 @@ export function resolveBattleRound(state: GameState, fromId: string, toId: strin
   return { state: checkOutcome(next), result };
 }
 
+export function resolveFullAssault(state: GameState, fromId: string, toId: string, preferred: UnitType[]): { state: GameState; result: BattleResult } | null {
+  let current = state;
+  let rounds = 0;
+  let finalResult: BattleResult | null = null;
+  const attackerLosses: UnitType[] = [];
+  const defenderLosses: UnitType[] = [];
+  const priority = [...new Set([...preferred, ...unitTypeOrder])] as UnitType[];
+  while (rounds < 12) {
+    const from = current.territories.find(territory => territory.id === fromId);
+    const to = current.territories.find(territory => territory.id === toId);
+    if (!from || !to || to.owner === "royal" || totalUnits(from.units) <= 1) break;
+    const attackers: UnitType[] = [];
+    for (const unit of priority) {
+      for (let index = 0; index < from.units[unit] && attackers.length < Math.min(3, totalUnits(from.units) - 1); index++) attackers.push(unit);
+    }
+    const resolved = resolveBattleRound(current, fromId, toId, attackers);
+    if (!resolved) break;
+    rounds++;
+    current = resolved.state;
+    finalResult = resolved.result;
+    attackerLosses.push(...resolved.result.attackerLosses);
+    defenderLosses.push(...resolved.result.defenderLosses);
+    if (resolved.result.captured || current.phase === "victory" || current.phase === "defeat") break;
+  }
+  if (!finalResult) return null;
+  return { state: current, result: { ...finalResult, attackerLosses, defenderLosses, rounds } };
+}
+
 export function startAttackPhase(state: GameState): GameState {
   if (state.phase !== "reinforce" || !state.kingsOrder) return state;
   return { ...state, phase: "attack", reinforcements: 0, log: ["The Royal Army advances.", ...state.log] };
@@ -469,10 +533,19 @@ export function connectedFriendly(state: GameState, fromId: string, toId: string
 
 function addUnitToStronghold(state: GameState, faction: FactionId, points: number): void {
   const borders = state.territories.filter(t => t.owner === faction && t.neighbors.some(n => state.territories.find(x => x.id === n)?.owner !== faction));
-  const target = [...borders].sort((a,b) => totalUnits(b.units) - totalUnits(a.units))[0] ?? state.territories.find(t => t.owner === faction);
+  const target = [...borders].sort((a,b) => {
+    if (faction === "wolves") return totalUnits(b.units) - totalUnits(a.units);
+    if (faction === "boars") return totalUnits(a.units) - totalUnits(b.units);
+    const aOpen = a.neighbors.filter(id => state.territories.find(item => item.id === id)?.owner !== faction).length;
+    const bOpen = b.neighbors.filter(id => state.territories.find(item => item.id === id)?.owner !== faction).length;
+    return bOpen - aOpen || totalUnits(b.units) - totalUnits(a.units);
+  })[0] ?? state.territories.find(t => t.owner === faction);
   if (!target) return;
   while (points > 0) {
-    if (points >= 2 && target.units.cavalry < 2) { target.units.cavalry++; points -= 2; }
+    if (faction === "wolves" && points >= 2) { target.units.cavalry++; points -= 2; }
+    else if (faction === "serpents" && points >= 2) { target.units.archers++; points -= 2; }
+    else if (faction === "boars") { target.units.infantry++; points--; }
+    else if (points >= 2 && target.units.cavalry < 2) { target.units.cavalry++; points -= 2; }
     else { target.units.infantry++; points--; }
   }
 }
@@ -481,8 +554,15 @@ function aiAttackOnce(state: GameState, faction: FactionId): GameState {
   const next = cloneGame(state);
   const options = next.territories.flatMap(from => {
     if (from.owner !== faction || totalUnits(from.units) < 3) return [];
-    return from.neighbors.map(id => next.territories.find(t => t.id === id)!).filter(Boolean).filter(to => to.owner !== faction).map(to => ({ from, to, edge: totalUnits(from.units) - totalUnits(to.units) }));
-  }).sort((a,b) => b.edge - a.edge);
+    return from.neighbors.map(id => next.territories.find(t => t.id === id)!).filter(Boolean).filter(to => to.owner !== faction).map(to => {
+      const edge = totalUnits(from.units) - totalUnits(to.units);
+      const collectionMembers = next.territories.filter(item => item.collection === to.collection && item.id !== to.id);
+      const completesCollection = collectionMembers.every(item => item.owner === faction) ? 1 : 0;
+      const royalTarget = to.owner === "royal" ? 1 : 0;
+      const doctrine = faction === "wolves" ? from.units.cavalry * .22 + royalTarget * .4 : faction === "boars" ? completesCollection * 1.2 + (totalUnits(to.units) <= 2 ? .25 : 0) : royalTarget * .3 + to.units.archers * -.12;
+      return { from, to, edge, score: edge + doctrine };
+    });
+  }).sort((a,b) => b.score - a.score || b.edge - a.edge);
   const option = options[0];
   if (!option || option.edge < 0) return next;
   const attackers = chooseAttackers(option.from.units);
@@ -547,10 +627,32 @@ export function endPlayerTurn(state: GameState): GameState {
   return runEnemyTurn(state);
 }
 
+export function campaignObjectiveProgress(state: GameState) {
+  const stage = campaignStages[state.stage - 1];
+  const royalCount = factionTerritoryCount(state, "royal");
+  if (stage.victoryKind === "conquest") return { current: royalCount, total: state.territories.length, met: royalCount === state.territories.length, targetIds: state.territories.filter(territory => territory.owner !== "royal").map(territory => territory.id), label: `${royalCount} / ${state.territories.length} territories` };
+  if (stage.victoryKind === "territories") {
+    const ids = stage.objectiveTerritories ?? [];
+    const current = ids.filter(id => state.territories.find(territory => territory.id === id)?.owner === "royal").length;
+    return { current, total: ids.length, met: current === ids.length, targetIds: ids.filter(id => state.territories.find(territory => territory.id === id)?.owner !== "royal"), label: `${current} / ${ids.length} objectives held` };
+  }
+  if (stage.victoryKind === "eliminate-wolves") {
+    const wolves = factionTerritoryCount(state, "wolves");
+    return { current: wolves ? 0 : 1, total: 1, met: wolves === 0, targetIds: state.territories.filter(territory => territory.owner === "wolves").map(territory => territory.id), label: wolves ? `${wolves} Red Wolf territories remain` : "Red Wolves defeated" };
+  }
+  if (stage.victoryKind === "survive") {
+    const targetTurn = stage.targetTurn ?? 5;
+    const met = state.turn >= targetTurn && royalCount >= 16;
+    return { current: Math.min(state.turn, targetTurn), total: targetTurn, met, targetIds: state.territories.filter(territory => territory.owner === "royal").map(territory => territory.id), label: `Turn ${state.turn} / ${targetTurn} · ${royalCount} / 16 territories` };
+  }
+  const eliminated = (["wolves", "boars", "serpents"] as FactionId[]).filter(faction => factionTerritoryCount(state, faction) === 0).length;
+  return { current: eliminated, total: 2, met: eliminated >= 2, targetIds: state.territories.filter(territory => territory.owner !== "royal").map(territory => territory.id), label: `${eliminated} / 2 rival houses defeated` };
+}
+
 export function checkOutcome(state: GameState): GameState {
   const royal = state.territories.filter(t => t.owner === "royal").length;
-  if (royal === state.territories.length) return { ...state, phase: "victory", campaignWins: state.preview ? state.campaignWins : Math.max(state.campaignWins, state.stage) };
   if (royal === 0) return { ...state, phase: "defeat" };
+  if (campaignObjectiveProgress(state).met) return { ...state, phase: "victory", campaignWins: state.preview ? state.campaignWins : Math.max(state.campaignWins, state.stage) };
   return state;
 }
 

@@ -2,12 +2,12 @@ import { Check, CircleDot, Crown, GitCompareArrows, Hammer, ShieldCheck, Sparkle
 
 const systems = [
   { name: "Conquest rules", detail: "32 territories, adjacency, collections and reinforcements", status: "playable", completion: 92 },
-  { name: "King's Orders", detail: "One mutually exclusive strategic commitment every turn", status: "active", completion: 82 },
+  { name: "Royal Commands", detail: "One mutually exclusive strategic commitment every turn", status: "playable", completion: 94 },
   { name: "Army command", detail: "Infantry, archers and cavalry adapt to regional field rules", status: "playable", completion: 90 },
-  { name: "Battle theatre", detail: "ThreeJS diorama, dynamic rival heraldry and persistent casualties", status: "review", completion: 85 },
-  { name: "Strategic map", detail: "Twelve bordered political maps with persistent names, routes and chokepoints", status: "playable", completion: 95 },
-  { name: "Enemy houses", detail: "Three rival AIs with chronological dice-and-casualty scout reports", status: "polish", completion: 82 },
-  { name: "Royal campaign", detail: "Twelve playable chapters, unique topologies, field rules, legacy and safe scouting", status: "playable", completion: 92 },
+  { name: "Battle theatre", detail: "ThreeJS diorama, odds guidance, round control and persistent casualties", status: "playable", completion: 93 },
+  { name: "Strategic map", detail: "Twelve bordered political maps with stable markers, overlays, routes and chokepoints", status: "playable", completion: 97 },
+  { name: "Enemy houses", detail: "Three doctrine-led AIs with focused, chronological scout reports", status: "playable", completion: 92 },
+  { name: "Royal campaign", detail: "Twelve distinct objectives, visible rewards, field rules, legacy and safe scouting", status: "playable", completion: 96 },
   { name: "Adversarial review", detail: "Five blind waves complete; final map verdict strong and near-premium", status: "review", completion: 90 },
 ];
 
@@ -23,7 +23,7 @@ export default function ProgressPage() {
         <p className="eyebrow">Live forge ledger</p>
         <h1>Building Banners of Caldris</h1>
         <p>A playable campaign is in the forge. Every system is tested on its own, then judged again as part of the full game.</p>
-        <div className="release-status"><span className="pulse-dot"/> Wave five · release candidate live</div>
+        <div className="release-status"><span className="pulse-dot"/> Onboarding and campaign-depth pass · validating</div>
       </header>
 
       <section className="progress-principles">
@@ -33,7 +33,7 @@ export default function ProgressPage() {
       </section>
 
       <section className="progress-ledger">
-        <div className="ledger-heading"><div><p className="eyebrow">Current systems</p><h2>The campaign, piece by piece</h2></div><span>Updated 30 Aug 2026 · Wave 3</span></div>
+        <div className="ledger-heading"><div><p className="eyebrow">Current systems</p><h2>The campaign, piece by piece</h2></div><span>Updated 30 Aug 2026 · Clarity pass</span></div>
         <div className="ledger-grid">
           {systems.map((system, index) => (
             <article className="ledger-item" key={system.name}>
@@ -46,8 +46,8 @@ export default function ProgressPage() {
       </section>
 
       <section className="progress-now">
-        <div><p className="eyebrow">Audit five · near-premium map verdict</p><h2>The geography now teaches the strategy</h2><p>The final blind review passed province borders, collection colour, terrain, barriers, routes, chokepoints, targeting, battle clarity and save safety. Its last defect—names hidden until selection—has been removed; all territory names now remain visible on regional maps.</p></div>
-        <ol><li><b>01</b> Fourteen deterministic and production tests pass</li><li><b>02</b> ESLint passes with zero warnings</li><li><b>03</b> Release candidate deployed from the audited tree</li></ol>
+        <div><p className="eyebrow">Current pass · comprehension before command</p><h2>The game now explains why the war matters</h2><p>A cinematic illustrated prologue establishes the conflict before the campaign atlas. The first battlefield opens with a four-step tutorial, a permanent map key, objective markers and optional route, collection and threat overlays. Every chapter now asks for a different strategic feat and grants a named campaign reward.</p></div>
+        <ol><li><b>01</b> Stable, atomic unit-marker updates remove distracting flicker</li><li><b>02</b> Doctrine-led enemies report actions one at a time on the map</li><li><b>03</b> Dark-blue interface and clean sans-serif opening screen</li></ol>
       </section>
     </main>
   );

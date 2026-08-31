@@ -4,9 +4,9 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, ChevronRight, Crown, Flag, LockKeyhole, Map, Menu, Move, RotateCcw, Shield, Swords, Trophy, Volume2, VolumeX, X } from "lucide-react";
+import { AlertTriangle, BookOpen, ChevronRight, Crown, Eye, Flag, Layers3, LockKeyhole, Map, Menu, Move, Route, RotateCcw, Shield, SkipForward, Swords, Target, Trophy, Volume2, VolumeX, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ThreeBoard } from "@/components/three-board";
+import { MapOverlay, ThreeBoard } from "@/components/three-board";
 import { BattleDialog } from "@/components/battle-dialog";
 import {
   BattleResult,
@@ -18,28 +18,31 @@ import {
   Territory,
   UnitType,
   campaignStages,
+  campaignLegacySummary,
+  campaignObjectiveProgress,
   chooseKingsOrder,
   collections,
   controlledCollections,
   connectedFriendly,
   createGame,
   endPlayerTurn,
-  factionTerritoryCount,
   factions,
   fortify,
   reinforce,
   resolveBattleRound,
+  resolveFullAssault,
   startAttackPhase,
   startFortifyPhase,
   totalUnits,
   unitCost,
 } from "@/lib/game";
 
-type Screen = "title" | "campaign" | "briefing" | "board";
+type Screen = "title" | "prologue" | "campaign" | "briefing" | "board";
 type AudioCue = "select" | "phase" | "battle" | "victory";
 
 const SAVE_KEY = "banners-of-caldris-save-v1";
 const PROGRESS_KEY = "banners-of-caldris-progress-v1";
+const TUTORIAL_KEY = "banners-of-caldris-tutorial-v1";
 
 function playCue(cue: AudioCue, enabled: boolean) {
   if (!enabled || typeof window === "undefined") return;
@@ -76,12 +79,12 @@ function TitleScreen({ canContinue, hasProgress, onNew, onContinue, onAtlas, sou
       <div className="title-vignette" />
       <div className="title-standard" aria-hidden="true"><span>♞</span></div>
       <section className="title-copy">
-        <p className="eyebrow">A campaign of conquest, loyalty and broken oaths</p>
+        <p className="eyebrow">A single-player strategy campaign</p>
         <h1>Banners <small>of</small> Caldris</h1>
         <p className="title-subtitle">War for the Realm</p>
-        <p className="title-lede">King Aldren has returned from exile. Lead the Royal Lions through twelve war-torn regions and reclaim Crownspire—one territory, one battle and one difficult victory at a time.</p>
+        <p className="title-lede">The crown has fallen. Lead King Aldren&apos;s Royal Lions through twelve war-torn regions and reclaim Crownspire through judgement, nerve and steel.</p>
         <div className="title-actions">
-          {canContinue ? <button className="button gold large" onClick={onContinue}>Continue campaign <ChevronRight size={19}/></button> : hasProgress ? <button className="button gold large" onClick={onAtlas}>Continue campaign <ChevronRight size={19}/></button> : <button className="button gold large" onClick={onNew}>Begin new campaign <ChevronRight size={19}/></button>}
+          {canContinue ? <button className="button blue large" onClick={onContinue}>Continue campaign <ChevronRight size={19}/></button> : hasProgress ? <button className="button blue large" onClick={onAtlas}>Continue campaign <ChevronRight size={19}/></button> : <button className="button blue large" onClick={onNew}>Begin new campaign <ChevronRight size={19}/></button>}
           {hasChronicle ? <button className="button steel" onClick={() => setConfirmNew(true)}>New campaign</button> : null}
         </div>
         <div className="title-links">
@@ -96,6 +99,33 @@ function TitleScreen({ canContinue, hasProgress, onNew, onContinue, onAtlas, sou
           <div className="new-campaign-actions"><button className="button steel" onClick={() => setConfirmNew(false)}>Keep current campaign</button><button className="button gold" onClick={() => { setConfirmNew(false); onNew(); }}>Erase and begin again</button></div>
         </DialogContent>
       </Dialog>
+    </main>
+  );
+}
+
+function StoryScreen({ onContinue, onBack }: { onContinue: () => void; onBack: () => void }) {
+  return (
+    <main className="story-screen">
+      <div className="story-images" aria-hidden="true">
+        <img src="/art/campaign-overview.webp" alt="" />
+        <img src="/art/battle-reference.webp" alt="" />
+        <img src="/art/vale-of-stoneford.webp" alt="" />
+      </div>
+      <div className="story-scrim" />
+      <button className="icon-button story-back" onClick={onBack} aria-label="Back"><X/></button>
+      <section className="story-copy">
+        <p className="eyebrow">The realm, in the year of the broken crown</p>
+        <h1>Caldris has no king.<br/><span>Not yet.</span></h1>
+        <p>King Aldren returns from fifteen years of exile to find his country divided. Three rival houses hold its roads, grain and fortresses. Crownspire belongs to the usurper Cassian Vane.</p>
+        <div className="story-houses">
+          {(["wolves", "boars", "serpents"] as FactionId[]).map(factionId => {
+            const faction = factions[factionId];
+            return <article key={factionId}><FactionShield faction={factionId}/><div><b>{faction.shortName}</b><span>{faction.doctrine}</span></div></article>;
+          })}
+        </div>
+        <div className="story-order"><Target/><div><b>Your command</b><span>Secure Stoneford, rebuild the Royal Lions and open the twelve-region road to the capital.</span></div></div>
+        <button className="button blue large" onClick={onContinue}>Enter the royal war council <ChevronRight size={19}/></button>
+      </section>
     </main>
   );
 }
@@ -120,8 +150,8 @@ function CampaignScreen({ wins, selectedStage, activeStage, onSelect, onBegin, o
         <h2>{selected.name}</h2>
         <p className="act-label">{selected.act}</p>
         <p>{selected.briefing}</p>
-        <dl><div><dt>King&apos;s order</dt><dd>{selected.objective}</dd></div><div><dt>Field rule</dt><dd>{selected.ruleName} — {selected.ruleDetail}</dd></div><div><dt>Reward</dt><dd>{selected.reward}</dd></div><div><dt>Legacy</dt><dd>{wins ? `${Math.floor(wins / 2)} veteran units · +${Math.floor(wins / 4)} muster` : "No prior victories"}</dd></div><div><dt>Threat</dt><dd>{"◆".repeat(Math.ceil(selected.difficulty))}{"◇".repeat(Math.max(0,3-Math.ceil(selected.difficulty)))}</dd></div></dl>
-        {canResume ? <div className="campaign-actions"><button className="button gold wide" onClick={onResume}>Resume current battle<ChevronRight size={18}/></button><button className="restart-chapter" onClick={onBegin}>Restart this chapter from the war council</button></div> : selected.id > wins + 1 ? <div className="campaign-actions"><button className="button steel wide" onClick={onPreview}>Scout battlefield<ChevronRight size={18}/></button><small className="preview-note">Skirmish intelligence · campaign progress is unchanged</small></div> : <button className="button gold wide" onClick={onBegin}>{selected.id <= wins ? "Replay campaign" : "Enter war council"}<ChevronRight size={18}/></button>}
+        <dl><div><dt>Campaign objective</dt><dd><b>{selected.objective}</b><small>{selected.objectiveDetail}</small></dd></div><div><dt>Field rule</dt><dd>{selected.ruleName} — {selected.ruleDetail}</dd></div><div><dt>Reward</dt><dd><b>{selected.reward}</b><small>{selected.rewardDetail}</small></dd></div><div><dt>Campaign legacy</dt><dd>{campaignLegacySummary(wins)}</dd></div><div><dt>Threat</dt><dd>{"◆".repeat(Math.ceil(selected.difficulty))}{"◇".repeat(Math.max(0,3-Math.ceil(selected.difficulty)))}</dd></div></dl>
+        {canResume ? <div className="campaign-actions"><button className="button gold wide" onClick={onResume}>Resume current battle<ChevronRight size={18}/></button><button className="restart-chapter" onClick={onBegin}>Restart this chapter from the war council</button></div> : selected.id > wins + 1 ? <div className="campaign-actions"><button className="button steel wide" onClick={onPreview}>Reconnoitre chapter<ChevronRight size={18}/></button><small className="preview-note">Practice skirmish · campaign progress is unchanged</small></div> : <button className="button gold wide" onClick={onBegin}>{selected.id <= wins ? "Replay campaign" : "Enter war council"}<ChevronRight size={18}/></button>}
       </aside>
     </main>
   );
@@ -138,7 +168,7 @@ function BriefingScreen({ stage, onBegin, onBack }: { stage: CampaignStage; onBe
           <p className="eyebrow">King Aldren Caerlyn</p>
           <h1>“General, bring this land beneath one banner.”</h1>
           <p>{stage.briefing}</p>
-          <div className="order-grid"><div><Shield/><span><b>Objective</b>{stage.objective}</span></div><div><Trophy/><span><b>Reward</b>{stage.reward}</span></div><div><Map/><span><b>Field</b>32 territories · 6 collections</span></div><div><Swords/><span><b>{stage.ruleName}</b>{stage.ruleDetail}</span></div></div>
+          <div className="order-grid"><div><Shield/><span><b>Objective · {stage.objective}</b>{stage.objectiveDetail}</span></div><div><Trophy/><span><b>Reward · {stage.reward}</b>{stage.rewardDetail}</span></div><div><Map/><span><b>Field</b>32 territories · 6 collections</span></div><div><Swords/><span><b>{stage.ruleName}</b>{stage.ruleDetail}</span></div></div>
           <blockquote>“Win their castles if you must. Win their trust if you can. But open the road north.”</blockquote>
           <button className="button gold large wide" onClick={onBegin}>Raise the royal banners <Flag size={18}/></button>
         </article>
@@ -154,6 +184,20 @@ function UnitRow({ unit, count, fieldRule, active, onClick, disabled }: { unit: 
   return <button className={`unit-row ${active ? "active" : ""}`} onClick={onClick} disabled={disabled}><span>{copy[0]}</span><div><b>{copy[1]}</b><small>{copy[2]}</small></div><strong>{count}</strong></button>;
 }
 
+function reportPresentation(entry: string) {
+  const factionId = (["wolves", "boars", "serpents"] as FactionId[]).find(id => entry.includes(factions[id].shortName)) ?? "wolves";
+  const [action, rollText] = entry.split(" · rolls ");
+  const captured = /capture/i.test(action);
+  const target = action.match(/(?:strike|capture) (.+?) (?:from|from the)/i)?.[1] ?? action.match(/and capture (.+?) from/i)?.[1];
+  return {
+    factionId,
+    targetName: target,
+    title: captured ? `${factions[factionId].shortName} seize ${target ?? "a territory"}` : `${factions[factionId].shortName} attack ${target ?? "the border"}`,
+    action,
+    rolls: rollText ? `Dice: ${rollText}` : "No battle was joined.",
+  };
+}
+
 function BoardScreen({ game, setGame, sound, setSound, reducedMotion, setReducedMotion, onCampaign }: { game: GameState; setGame: React.Dispatch<React.SetStateAction<GameState>>; sound: boolean; setSound: (v: boolean) => void; reducedMotion: boolean; setReducedMotion: (v: boolean) => void; onCampaign: () => void }) {
   const [selectedId, setSelectedId] = useState<string | null>(() => game.territories.find(territory => territory.owner === "royal")?.id ?? null);
   const [attackFromId, setAttackFromId] = useState<string | null>(null);
@@ -166,13 +210,27 @@ function BoardScreen({ game, setGame, sound, setSound, reducedMotion, setReduced
   const [rulesOpen, setRulesOpen] = useState(false);
   const [enemyOverlay, setEnemyOverlay] = useState(false);
   const [enemyReport, setEnemyReport] = useState<string[] | null>(null);
+  const [enemyReportIndex, setEnemyReportIndex] = useState(0);
+  const [mapOverlay, setMapOverlay] = useState<MapOverlay>("none");
+  const [tutorialStep, setTutorialStep] = useState(() => game.stage === 1 && game.turn === 1 && !game.preview && typeof window !== "undefined" && localStorage.getItem(TUTORIAL_KEY) !== "complete" ? 0 : -1);
   const selected = game.territories.find(t => t.id === selectedId) ?? null;
   const attackFrom = game.territories.find(t => t.id === attackFromId) ?? null;
   const attackTo = game.territories.find(t => t.id === attackToId) ?? null;
   const fortifyFrom = game.territories.find(t => t.id === fortifyFromId) ?? null;
   const royalCollections = controlledCollections(game, "royal");
   const stage = campaignStages[game.stage - 1];
+  const objectiveProgress = useMemo(() => campaignObjectiveProgress(game), [game]);
   const movementLimit = stage.rule === "causeways" ? 3 : Number.POSITIVE_INFINITY;
+  const selectedCollection = selected ? collections.find(collection => collection.id === selected.collection) : null;
+  const selectedCollectionMembers = selected ? game.territories.filter(territory => territory.collection === selected.collection) : [];
+  const selectedCollectionHeld = selectedCollectionMembers.filter(territory => territory.owner === "royal").length;
+  const selectedCollectionMissing = selectedCollectionMembers.filter(territory => territory.owner !== "royal");
+  const tutorialSteps = [
+    { icon: <Eye/>, label: "The war table", title: "Read the battlefield at a glance", copy: "Blue shields are your territories. Every shield's number is the total army stationed there. Roads and mountain passes show which territories can attack one another.", cue: "Your territory is already selected on the right. Its panel separates infantry, archers and cavalry." },
+    { icon: <Crown/>, label: "Your turn", title: "Command in three clear phases", copy: "First choose one Royal Command. Muster spends reinforcement points. Conquer lets you attack adjacent enemies. Final movement repositions one army before the rival houses act.", cue: "The phase bar at the bottom always shows what to do next." },
+    { icon: <Swords/>, label: "Your first attack", title: "Attack from strength", copy: "During Conquer, choose one of your blue territories with at least two units. Legal enemy targets gain red rings. Choose a ring, select up to three attackers, then roll or resolve the full assault.", cue: "One unit must always remain behind to hold the territory." },
+    { icon: <Target/>, label: "Win the chapter", title: stage.objective, copy: stage.objectiveDetail, cue: `Complete a coloured collection for its muster bonus. Chapter reward: ${stage.rewardDetail}` },
+  ];
   const targetIds = useMemo(() => {
     if (game.phase === "attack" && attackFrom) return attackFrom.neighbors.filter(id => game.territories.find(t => t.id === id)?.owner !== "royal");
     if (game.phase === "fortify" && fortifyFromId && !game.fortifiedThisTurn) return game.territories.filter(t => t.owner === "royal" && t.id !== fortifyFromId && connectedFriendly(game, fortifyFromId, t.id, "royal")).map(t => t.id);
@@ -214,6 +272,28 @@ function BoardScreen({ game, setGame, sound, setSound, reducedMotion, setReduced
     playCue("battle", sound);
   };
 
+  const doFullBattle = (attackers: UnitType[]) => {
+    if (!attackFromId || !attackToId) return;
+    const resolved = resolveFullAssault(game, attackFromId, attackToId, attackers);
+    if (!resolved) return;
+    setGame(resolved.state);
+    setBattleResult(resolved.result);
+    playCue("battle", sound);
+  };
+
+  const focusEnemyReport = (entries: string[], index: number, state: GameState) => {
+    const entry = entries[index];
+    const targetName = entry ? reportPresentation(entry).targetName : null;
+    const territory = state.territories.find(item => item.name === targetName) ?? [...state.territories].sort((a,b) => b.name.length - a.name.length).find(item => entry?.includes(item.name));
+    setEnemyReportIndex(index);
+    setSelectedId(territory?.id ?? null);
+  };
+
+  const finishTutorial = () => {
+    localStorage.setItem(TUTORIAL_KEY, "complete");
+    setTutorialStep(-1);
+  };
+
   const nextPhase = () => {
     playCue("phase", sound);
     if (game.phase === "reinforce") {
@@ -227,7 +307,8 @@ function BoardScreen({ game, setGame, sound, setSound, reducedMotion, setReduced
       window.setTimeout(() => {
         const resolved = endPlayerTurn(snapshot);
         const newEntries = resolved.log.filter(entry => !snapshot.log.includes(entry)).filter(entry => !entry.startsWith("Turn ")).slice(0, 6).reverse();
-        setGame(resolved); setEnemyOverlay(false); setEnemyReport(newEntries); setSelectedId(null); setFortifyFromId(null);
+        setGame(resolved); setEnemyOverlay(false); setEnemyReport(newEntries); setFortifyFromId(null);
+        if (newEntries.length) focusEnemyReport(newEntries, 0, resolved); else setSelectedId(null);
       }, reducedMotion ? 250 : 1200);
     }
   };
@@ -249,7 +330,7 @@ function BoardScreen({ game, setGame, sound, setSound, reducedMotion, setReduced
 
   return (
     <main className="board-screen">
-      <ThreeBoard game={game} selectedId={selectedId} targetIds={targetIds} onSelect={selectTerritory} reducedMotion={reducedMotion}/>
+      <ThreeBoard game={game} selectedId={selectedId} targetIds={targetIds} objectiveIds={objectiveProgress.targetIds} overlay={mapOverlay} onSelect={selectTerritory} reducedMotion={reducedMotion}/>
       {game.preview ? <div className="preview-ribbon">Battlefield intelligence · chapter {game.stage} skirmish</div> : null}
       <header className="board-topbar">
         <button className="icon-button" onClick={() => setSettingsOpen(true)} aria-label="Menu"><Menu/></button>
@@ -260,13 +341,22 @@ function BoardScreen({ game, setGame, sound, setSound, reducedMotion, setReduced
         <div className="faction-order">{(["royal","wolves","boars","serpents"] as FactionId[]).map(f => <FactionShield key={f} faction={f} active={game.activeFaction === f}/>)}</div>
       </header>
 
-      {game.phase === "reinforce" && !game.kingsOrder ? <section className="kings-order-choice" aria-labelledby="kings-order-title"><p className="eyebrow">Seal one command · the others are lost this turn</p><h2 id="kings-order-title">Choose the King&apos;s Order</h2><div>{([
+      <div className="board-key" aria-label="Map key"><span><i className="key-shield"/>Blue shield = your army</span><span><b>5</b>Number = total units</span><span><Route/>Road = legal route</span></div>
+      <div className="map-tools" aria-label="Map overlays">
+        {([
+          ["routes", <Route key="route"/>, "Routes"],
+          ["collections", <Layers3 key="layers"/>, "Collections"],
+          ["threats", <AlertTriangle key="alert"/>, "Threats"],
+        ] as [MapOverlay, React.ReactNode, string][]).map(([id,icon,label]) => <button key={id} aria-pressed={mapOverlay === id} onClick={() => setMapOverlay(current => current === id ? "none" : id)}>{icon}<span>{label}</span></button>)}
+      </div>
+
+      {game.phase === "reinforce" && !game.kingsOrder && tutorialStep < 0 && !enemyReport ? <section className="kings-order-choice" aria-labelledby="kings-order-title"><p className="eyebrow">Choose one command for this turn</p><h2 id="kings-order-title">Choose a Royal Command</h2><div>{([
         ["levy", "⚑", "Call the Banners", "+2 muster points now"],
         ["vanguard", "♞", "Ride at Dawn", "Cavalry gain +1 extra in your first battle"],
         ["bastion", "♜", "Hold the Line", "Archers gain +1 extra in the first enemy assault"],
-      ] as [KingsOrder,string,string,string][]).map(([id,glyph,name,detail]) => <button key={id} onClick={() => { setGame(chooseKingsOrder(game,id)); playCue("phase",sound); }}><span>{glyph}</span><b>{name}</b><small>{detail}</small></button>)}</div><p>Every order is powerful. Only one survives the wax seal.</p></section> : null}
+      ] as [KingsOrder,string,string,string][]).map(([id,glyph,name,detail]) => <button key={id} onClick={() => { setGame(chooseKingsOrder(game,id)); playCue("phase",sound); }}><span>{glyph}</span><b>{name}</b><small>{detail}</small></button>)}</div><p>Only one Royal Command may be sealed each turn.</p></section> : null}
 
-      <aside className="objective-card parchment-panel"><p className="eyebrow">King&apos;s order</p><h2>{stage.objective}</h2><p><strong>{stage.ruleName}:</strong> {stage.ruleDetail}</p>{game.campaignWins ? <small className="legacy-bonus">Legacy · {Math.floor(game.campaignWins / 2)} veterans · +{Math.floor(game.campaignWins / 4)} muster</small> : null}<div className="objective-progress"><span>{factionTerritoryCount(game,"royal")} / 32 territories</span><b>{royalCollections.length} / 6 collections</b></div></aside>
+      <aside className="objective-card parchment-panel"><p className="eyebrow">Campaign objective</p><h2>{stage.objective}</h2><p>{stage.objectiveDetail}</p><p><strong>{stage.ruleName}:</strong> {stage.ruleDetail}</p>{game.campaignWins ? <small className="legacy-bonus">Legacy · {campaignLegacySummary(game.campaignWins)}</small> : null}<div className="objective-progress"><span>{objectiveProgress.label}</span><b>{royalCollections.length} / 6 collections</b></div></aside>
 
       <aside className="territory-panel">
         {selected ? <>
@@ -275,10 +365,11 @@ function BoardScreen({ game, setGame, sound, setSound, reducedMotion, setReduced
           <div className="unit-list">
             {(["infantry","archers","cavalry"] as UnitType[]).map(unit => <UnitRow key={unit} unit={unit} count={selected.units[unit]} fieldRule={stage.rule} disabled={game.phase !== "reinforce" || selected.owner !== "royal" || game.reinforcements < unitCost(unit)} onClick={() => setGame(reinforce(game, selected.id, unit))}/>) }
           </div>
+          {selectedCollection ? <div className="collection-progress"><div><span>{selectedCollection.name}</span><b>{selectedCollectionHeld}/{selectedCollectionMembers.length} held · +{selectedCollection.bonus} muster</b></div><div className="collection-track"><i style={{ width: `${selectedCollectionHeld / selectedCollectionMembers.length * 100}%` }}/></div>{selectedCollectionMissing.length ? <small>Still needed: {selectedCollectionMissing.slice(0,3).map(item => item.name).join(", ")}{selectedCollectionMissing.length > 3 ? ` +${selectedCollectionMissing.length - 3} more` : ""}</small> : <small>Collection secured. Defend it to keep the bonus.</small>}</div> : null}
           <div className="connections"><span>Connected territories</span><div>{selected.neighbors.map(id => <button key={id} onClick={() => selectTerritory(game.territories.find(t => t.id === id)!)}>{game.territories.find(t => t.id === id)?.name}</button>)}</div></div>
-          {game.phase === "attack" && selected.owner === "royal" && totalUnits(selected.units) > 1 ? <div className="panel-callout"><Swords/><span>Select a red-linked enemy territory to attack from {selected.name}.</span></div> : null}
+          {game.phase === "attack" && selected.owner === "royal" && totalUnits(selected.units) > 1 ? <div className="panel-callout"><Swords/><span>Red rings are legal targets from {selected.name}. The number on each shield is its total army; one unit must remain here.</span></div> : null}
           {game.phase === "fortify" && game.fortifiedThisTurn ? <div className="panel-callout movement-done"><Shield/><span>Final movement complete. End the turn when your borders are ready.</span></div> : null}
-          {game.phase === "fortify" && fortifyFrom && selected.owner === "royal" && selected.id !== fortifyFrom.id ? <div className="fortify-picker"><div><span>Move from {fortifyFrom.name}</span><b>{totalUnits(fortifyUnits)} selected</b></div>{(["infantry","archers","cavalry"] as UnitType[]).map(unit => <div className="fortify-unit" key={unit}><span>{unit}</span><button onClick={() => changeFortifyUnit(unit,-1)}>−</button><b>{fortifyUnits[unit]}</b><button onClick={() => changeFortifyUnit(unit,1)}>+</button></div>)}<button className="button gold wide" disabled={totalUnits(fortifyUnits) < 1} onClick={confirmFortify}><Move size={17}/> Confirm final movement</button></div> : null}
+          {game.phase === "fortify" && fortifyFrom && selected.owner === "royal" && selected.id !== fortifyFrom.id ? <div className="fortify-picker"><div><span>Move from {fortifyFrom.name}</span><b>{totalUnits(fortifyUnits)} selected</b></div>{(["infantry","archers","cavalry"] as UnitType[]).map(unit => <div className="fortify-unit" key={unit}><span>{unit}</span><button aria-label={`Remove ${unit} from movement`} onClick={() => changeFortifyUnit(unit,-1)}>−</button><b>{fortifyUnits[unit]}</b><button aria-label={`Add ${unit} to movement`} onClick={() => changeFortifyUnit(unit,1)}>+</button></div>)}<button className="button gold wide" disabled={totalUnits(fortifyUnits) < 1} onClick={confirmFortify}><Move size={17}/> Confirm final movement</button></div> : null}
           {game.phase === "fortify" && fortifyFrom && selected.id === fortifyFrom.id ? <div className="panel-callout"><Move/><span>Choose any gold-linked royal territory, then decide exactly which units march there{Number.isFinite(movementLimit) ? ` (maximum ${movementLimit})` : ""}.</span></div> : null}
         </> : <div className="empty-selection"><Shield/><h2>Select a territory</h2><p>Inspect its army, routes and collection.</p></div>}
         <div className="war-log"><span>Dispatches</span>{game.log.slice(0,4).map((entry,i) => <p key={i}>{entry}</p>)}</div>
@@ -292,9 +383,20 @@ function BoardScreen({ game, setGame, sound, setSound, reducedMotion, setReduced
       </nav>
 
       {enemyOverlay ? <div className="enemy-turn-overlay"><FactionShield faction="wolves" active/><div><small>Enemy turn</small><h2>The rival houses are moving</h2><p>Scouts report marching banners across the Vale.</p></div><span className="loading-rune">◆</span></div> : null}
-      {enemyReport ? <div className="enemy-report parchment-panel"><p className="eyebrow">Scouts&apos; report</p><h2>The enemy turn is resolved</h2><div>{enemyReport.length ? enemyReport.map((entry,index) => <p key={index}>{entry}</p>) : <p>The rival houses hold their ground.</p>}</div><button className="button gold wide" onClick={() => setEnemyReport(null)}>Begin turn {game.turn}<ChevronRight/></button></div> : null}
+      {enemyReport ? (() => {
+        const report = enemyReport.length ? reportPresentation(enemyReport[enemyReportIndex]) : null;
+        const isLast = enemyReportIndex >= enemyReport.length - 1;
+        return <div className="enemy-report">
+          <div className="enemy-report-head"><FactionShield faction={report?.factionId ?? "wolves"} active/><div><p className="eyebrow">Scouts&apos; report · {enemyReport.length ? `${enemyReportIndex + 1} of ${enemyReport.length}` : "all quiet"}</p><h2>{report?.title ?? "The rival houses hold their ground"}</h2></div></div>
+          <div className="enemy-report-body"><b>{report ? factions[report.factionId].doctrine : "No border changed hands."}</b><p>{report?.action ?? "No enemy army found a worthwhile attack."}</p><span>{report?.rolls ?? "Your lines remain secure."}</span></div>
+          <button className="button blue wide" onClick={() => {
+            if (!isLast) focusEnemyReport(enemyReport, enemyReportIndex + 1, game);
+            else { setEnemyReport(null); setSelectedId(null); }
+          }}>{isLast ? `Begin turn ${game.turn}` : "Next enemy action"}<SkipForward/></button>
+        </div>;
+      })() : null}
 
-      <BattleDialog open={battleOpen} from={attackFrom} to={attackTo} result={battleResult} kingsOrder={game.kingsOrder} kingsOrderUsed={game.kingsOrderUsed} fieldRule={stage.rule} reducedMotion={reducedMotion} onOpenChange={open => { setBattleOpen(open); if (!open) setBattleResult(null); }} onRoll={doBattle} onReset={() => setBattleResult(null)} onCaptured={() => { setBattleOpen(false); setBattleResult(null); setSelectedId(attackToId); setAttackFromId(null); setAttackToId(null); }}/>
+      <BattleDialog open={battleOpen} from={attackFrom} to={attackTo} result={battleResult} kingsOrder={game.kingsOrder} kingsOrderUsed={game.kingsOrderUsed} fieldRule={stage.rule} reducedMotion={reducedMotion} onOpenChange={open => { setBattleOpen(open); if (!open) setBattleResult(null); }} onRoll={doBattle} onResolve={doFullBattle} onReset={() => setBattleResult(null)} onCaptured={() => { setBattleOpen(false); setBattleResult(null); setSelectedId(attackToId); setAttackFromId(null); setAttackToId(null); }}/>
 
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent className="settings-dialog parchment-panel text-[#231a10]">
@@ -310,11 +412,21 @@ function BoardScreen({ game, setGame, sound, setSound, reducedMotion, setReduced
       <Dialog open={rulesOpen} onOpenChange={setRulesOpen}>
         <DialogContent className="rules-dialog parchment-panel text-[#231a10]">
           <DialogHeader><DialogTitle>Rules of command</DialogTitle><DialogDescription>Everything needed to lead the Royal Lions.</DialogDescription></DialogHeader>
-          <div className="rule-list"><article><b>0 · King&apos;s Order</b><p>Seal one command each turn: extra levies, +1 extra to the first cavalry assault, or +1 extra to the first archer defence. The other two are lost until next turn.</p></article><article><b>1 · Muster</b><p>Gain at least 3 points: <strong>territories ÷ 3</strong>, rounded down, plus every complete collection. Infantry cost 1; archers and cavalry cost 2.</p></article><article><b>2 · Conquer</b><p>Attack an adjacent enemy with up to 3 units, leaving one behind. Defenders roll up to 2 dice and win ties.</p></article><article><b>Unit mastery</b><p>Cavalry normally add +1 to their attacking die. Archers normally add +1 to their defending die. The current field rule is reflected in every unit row and roll.</p></article><article><b>3 · Final movement</b><p>Once per turn, move any number of units between connected royal territories, always leaving one guard behind.</p></article><article><b>Current field · {stage.ruleName}</b><p>{stage.ruleDetail}</p></article><article><b>Victory</b><p>Control all 32 territories. Complete collections to accelerate the campaign, but defend their narrow entrances.</p></article></div>
+          <div className="rule-list"><article><b>0 · Royal Command</b><p>Seal one command each turn: extra levies, +1 extra to the first cavalry assault, or +1 extra to the first archer defence. The other two return next turn.</p></article><article><b>1 · Muster</b><p>Gain at least 3 points: <strong>territories ÷ 3</strong>, rounded down, plus every complete collection. Infantry cost 1; archers and cavalry cost 2.</p></article><article><b>2 · Conquer</b><p>Attack an adjacent enemy with up to 3 units, leaving one behind. Defenders roll up to 2 dice and win ties.</p></article><article><b>Unit mastery</b><p>Cavalry normally add +1 to their attacking die. Archers normally add +1 to their defending die. The current field rule is reflected in every unit row and roll.</p></article><article><b>3 · Final movement</b><p>Once per turn, move any number of units between connected royal territories, always leaving one guard behind.</p></article><article><b>Current field · {stage.ruleName}</b><p>{stage.ruleDetail}</p></article><article><b>Victory · {stage.objective}</b><p>{stage.objectiveDetail} Reward: {stage.rewardDetail}</p></article></div>
         </DialogContent>
       </Dialog>
 
-      {game.phase === "victory" ? <div className="outcome-overlay victory"><Trophy/><p className="eyebrow">{game.preview ? "Skirmish complete" : "Region secured"}</p><h1>{stage.name} is yours</h1><p>{game.preview ? "The scouts seal their report. Campaign progress remains unchanged." : "The royal road opens. Veterans carry their honours into the next campaign."}</p><button className="button gold large" onClick={onCampaign}>{game.preview ? "Return to the campaign atlas" : game.stage === 12 ? "View the restored realm" : "Continue the march"}<ChevronRight/></button></div> : null}
+      {tutorialStep >= 0 ? <section className="tutorial-overlay" role="dialog" aria-modal="true" aria-labelledby="tutorial-title">
+        <div className="tutorial-progress">{tutorialSteps.map((_,index) => <i key={index} className={index <= tutorialStep ? "active" : ""}/>)}</div>
+        <div className="tutorial-icon">{tutorialSteps[tutorialStep].icon}</div>
+        <p className="eyebrow">Field tutorial · {tutorialSteps[tutorialStep].label}</p>
+        <h2 id="tutorial-title">{tutorialSteps[tutorialStep].title}</h2>
+        <p>{tutorialSteps[tutorialStep].copy}</p>
+        <div className="tutorial-cue"><Target/>{tutorialSteps[tutorialStep].cue}</div>
+        <div className="tutorial-actions"><button onClick={finishTutorial}>Skip tutorial</button><button className="button blue" onClick={() => tutorialStep === tutorialSteps.length - 1 ? finishTutorial() : setTutorialStep(step => step + 1)}>{tutorialStep === tutorialSteps.length - 1 ? "Choose first command" : "Next"}<ChevronRight/></button></div>
+      </section> : null}
+
+      {game.phase === "victory" ? <div className="outcome-overlay victory"><Trophy/><p className="eyebrow">{game.preview ? "Skirmish complete" : "Campaign objective achieved"}</p><h1>{stage.name} is yours</h1><p>{game.preview ? "The scouts seal their report. Campaign progress remains unchanged." : `${stage.objective} is complete. ${stage.rewardDetail}`}</p><button className="button gold large" onClick={onCampaign}>{game.preview ? "Return to the campaign atlas" : game.stage === 12 ? "View the restored realm" : "Continue the march"}<ChevronRight/></button></div> : null}
       {game.phase === "defeat" ? <div className="outcome-overlay defeat"><Flag/><p className="eyebrow">The royal host is broken</p><h1>The campaign has failed</h1><p>{stage.name} remains beneath rival banners.</p><button className="button gold large" onClick={() => setGame(createGame(game.stage, game.campaignWins, game.preview))}>Retry {game.preview ? "skirmish" : "campaign"} <RotateCcw/></button></div> : null}
     </main>
   );
@@ -353,11 +465,12 @@ export default function GameShell() {
     try { const saved = JSON.parse(raw) as GameState; setGame({ ...saved, preview: false, fortifiedThisTurn: Boolean(saved.fortifiedThisTurn), kingsOrder: saved.kingsOrder ?? null, kingsOrderUsed: Boolean(saved.kingsOrderUsed) }); setSavedStage(saved.stage); setScreen("board"); } catch { localStorage.removeItem(SAVE_KEY); setCanContinue(false); setSavedStage(null); }
   };
   const enterCampaign = () => { const currentWins = Number(localStorage.getItem(PROGRESS_KEY) ?? wins); setWins(currentWins); setSelectedStage(Math.min(12, currentWins + 1)); setScreen("campaign"); };
-  const startFreshCampaign = () => { localStorage.removeItem(SAVE_KEY); localStorage.removeItem(PROGRESS_KEY); setWins(0); setSelectedStage(1); setCanContinue(false); setSavedStage(null); setGame(createGame()); setScreen("campaign"); };
+  const startFreshCampaign = () => { localStorage.removeItem(SAVE_KEY); localStorage.removeItem(PROGRESS_KEY); localStorage.removeItem(TUTORIAL_KEY); setWins(0); setSelectedStage(1); setCanContinue(false); setSavedStage(null); setGame(createGame()); setScreen("prologue"); };
   const beginStage = () => { const next = createGame(selectedStage, wins); localStorage.setItem(SAVE_KEY, JSON.stringify(next)); setCanContinue(true); setSavedStage(selectedStage); setGame(next); setScreen("board"); playCue("phase", sound); };
   const previewStage = () => { setGame(createGame(selectedStage, wins, true)); setScreen("board"); playCue("phase", sound); };
 
   if (screen === "title") return <TitleScreen canContinue={canContinue} hasProgress={wins > 0} onNew={startFreshCampaign} onContinue={loadSaved} onAtlas={enterCampaign} sound={sound} setSound={setSound}/>;
+  if (screen === "prologue") return <StoryScreen onContinue={enterCampaign} onBack={() => setScreen("title")}/>;
   const activeStage = canContinue ? savedStage : null;
   if (screen === "campaign") return <CampaignScreen wins={wins} selectedStage={selectedStage} activeStage={activeStage} onSelect={setSelectedStage} onBegin={() => setScreen("briefing")} onPreview={previewStage} onResume={loadSaved} onBack={() => setScreen("title")}/>;
   if (screen === "briefing") return <BriefingScreen stage={campaignStages[selectedStage - 1]} onBegin={beginStage} onBack={() => setScreen("campaign")}/>;

@@ -17,7 +17,7 @@ test("creates a connected and symmetric 32-territory campaign", () => {
   }
 });
 
-test("locks one consequential King's Order per turn", () => {
+test("locks one consequential Royal Command per turn", () => {
   const game = rules.createGame(1, 0);
   assert.equal(rules.reinforce(game, "stoneford", "infantry"), game);
   const levy = rules.chooseKingsOrder(game, "levy");
@@ -95,11 +95,28 @@ test("keeps intelligence skirmishes outside campaign progression", () => {
   assert.equal(outcome.campaignWins, 4);
 });
 
-test("carries victories forward as bounded campaign legacy", () => {
+test("carries named chapter rewards into later campaigns", () => {
   const untested = rules.createGame(9, 0, true);
   const veteran = rules.createGame(9, 8, false);
-  assert.equal(rules.reinforcementIncome(veteran, "royal"), rules.reinforcementIncome(untested, "royal") + 2);
+  assert.equal(rules.reinforcementIncome(veteran, "royal"), rules.reinforcementIncome(untested, "royal") + 1);
   const untestedRoyal = untested.territories.filter(item => item.owner === "royal").reduce((sum, item) => sum + rules.totalUnits(item.units), 0);
   const veteranRoyal = veteran.territories.filter(item => item.owner === "royal").reduce((sum, item) => sum + rules.totalUnits(item.units), 0);
-  assert.equal(veteranRoyal, untestedRoyal + 4);
+  assert.equal(veteranRoyal, untestedRoyal + 7);
+});
+
+test("uses distinct campaign objectives instead of conquest every chapter", () => {
+  const coast = rules.createGame(2, 1);
+  const targets = new Set(rules.campaignStages[1].objectiveTerritories);
+  const objectiveState = { ...coast, territories: coast.territories.map(item => targets.has(item.id) ? { ...item, owner: "royal" } : item) };
+  assert.ok(objectiveState.territories.some(item => item.owner !== "royal"));
+  assert.equal(rules.campaignObjectiveProgress(objectiveState).met, true);
+  assert.equal(rules.checkOutcome(objectiveState).phase, "victory");
+});
+
+test("resolves a full assault deterministically and reports its rounds", () => {
+  const ordered = rules.startAttackPhase(rules.chooseKingsOrder(rules.createGame(1, 0), "vanguard"));
+  const first = rules.resolveFullAssault(ordered, "stoneford", "crownmarket", ["cavalry", "infantry"]);
+  const second = rules.resolveFullAssault(ordered, "stoneford", "crownmarket", ["cavalry", "infantry"]);
+  assert.deepEqual(first, second);
+  assert.ok(first?.result.rounds >= 1);
 });

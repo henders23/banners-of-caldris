@@ -13,7 +13,7 @@ The game is designed for the browser with a direct Three.js war table and battle
 
 Each turn has four decisions:
 
-1. **King's Order** — seal one mutually exclusive command: extra levies, a cavalry-led opening assault, or an archer-led defence.
+1. **Royal Command** — seal one mutually exclusive command: extra levies, a cavalry-led opening assault, or an archer-led defence.
 2. **Muster** — gain `max(3, floor(territories / 3))` points plus bonuses from complete territorial collections. Infantry cost 1; archers and cavalry cost 2.
 3. **Conquer** — attack an adjacent enemy with up to three units while leaving one unit behind. Defenders roll up to two dice and win ties. Cavalry gain +1 while attacking; archers gain +1 while defending.
 4. **Final movement** — once per turn, move any mix of units between connected friendly territories, leaving one unit behind.

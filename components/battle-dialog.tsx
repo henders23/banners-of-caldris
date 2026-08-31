@@ -4,7 +4,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 
 import { useEffect, useMemo, useState } from "react";
-import { Minus, Plus, Shield, Swords, Flag, RotateCcw } from "lucide-react";
+import { Minus, Plus, Shield, Swords, Flag, RotateCcw, SkipForward } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { BattleDiorama } from "@/components/battle-diorama";
 import type { BattleResult, CampaignRule, FactionId, KingsOrder, Territory, UnitType, Units } from "@/lib/game";
@@ -18,6 +18,7 @@ type Props = {
   reducedMotion?: boolean;
   onOpenChange: (open: boolean) => void;
   onRoll: (attackers: UnitType[]) => void;
+  onResolve: (attackers: UnitType[]) => void;
   onCaptured: () => void;
   onReset: () => void;
   kingsOrder: KingsOrder | null;
@@ -40,7 +41,7 @@ function initialSelection(from: Territory | null): Units {
   return next;
 }
 
-export function BattleDialog({ open, from, to, result, reducedMotion, onOpenChange, onRoll, onCaptured, onReset, kingsOrder, kingsOrderUsed, fieldRule }: Props) {
+export function BattleDialog({ open, from, to, result, reducedMotion, onOpenChange, onRoll, onResolve, onCaptured, onReset, kingsOrder, kingsOrderUsed, fieldRule }: Props) {
   const [selection, setSelection] = useState<Units>(() => initialSelection(from));
   const [rolling, setRolling] = useState(false);
   const [defenderId, setDefenderId] = useState<FactionId>(to?.owner ?? "serpents");
@@ -63,6 +64,10 @@ export function BattleDialog({ open, from, to, result, reducedMotion, onOpenChan
   const defender = factions[defenderId];
   const cavalryBonus = fieldRule === "forest" ? 0 : fieldRule === "wolf-charge" ? 2 : 1;
   const archerBonus = fieldRule === "high-ground" ? 2 : 1;
+  const attackPower = selectedCount + selection.cavalry * cavalryBonus;
+  const defensePower = totalUnits(to.units) + Math.min(2, to.units.archers) * archerBonus;
+  const outlook = attackPower >= defensePower + 2 ? "Favoured" : attackPower >= defensePower ? "Even" : "Risky";
+  const displayedDefenderStrength = result ? (result.captured ? 0 : totalUnits(to.units)) : defenderStrength;
   const change = (unit: UnitType, delta: number) => {
     if (result) return;
     setSelection(current => {
@@ -76,6 +81,7 @@ export function BattleDialog({ open, from, to, result, reducedMotion, onOpenChan
     });
   };
   const doRoll = () => { if (!selectedCount) return; setRolling(true); window.setTimeout(() => onRoll(attackers), reducedMotion ? 80 : 650); };
+  const doResolve = () => { if (!selectedCount) return; setRolling(true); window.setTimeout(() => onResolve(attackers), reducedMotion ? 80 : 650); };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -89,12 +95,12 @@ export function BattleDialog({ open, from, to, result, reducedMotion, onOpenChan
           <div className="battle-titlebar">
             <div className="battle-side royal-side"><b>{factions.royal.shortName}</b><span>{totalUnits(from.units)} in {from.name}</span></div>
             <div><span className="eyebrow">Battle for</span><h2>{to.name}</h2></div>
-            <div className="battle-side enemy-side"><b>{defender.shortName}</b><span>{defenderStrength} defending</span></div>
+            <div className="battle-side enemy-side"><b>{defender.shortName}</b><span>{displayedDefenderStrength} defending</span></div>
           </div>
           <div className="battle-controls parchment-panel">
             {!result ? (
               <>
-                <div className="battle-ruleline"><Swords size={17} /> Choose up to three attackers <span>{kingsOrder === "vanguard" && !kingsOrderUsed ? "Ride at Dawn · cavalry gain +1 extra" : "Defender wins ties"}</span></div>
+                <div className="battle-ruleline"><Swords size={17} /> Choose up to three attackers <span className={`battle-outlook ${outlook.toLowerCase()}`}>{outlook} outlook</span><span>{kingsOrder === "vanguard" && !kingsOrderUsed ? "Ride at Dawn · cavalry gain +1 extra" : "Defender wins ties"}</span></div>
                 <div className="unit-selectors">
                   {(Object.keys(selection) as UnitType[]).map(unit => (
                     <div className={`unit-selector ${selection[unit] ? "selected" : ""}`} key={unit}>
@@ -109,6 +115,7 @@ export function BattleDialog({ open, from, to, result, reducedMotion, onOpenChan
                 <div className="battle-actions">
                   <button className="button ghost" onClick={() => onOpenChange(false)}>Retreat</button>
                   <div className="must-leave"><Shield size={15}/> One unit must remain in {from.name}</div>
+                  <button className="button steel" disabled={!selectedCount || rolling} onClick={doResolve}><SkipForward size={16}/>{rolling ? "Resolving…" : "Resolve assault"}</button>
                   <button className="button gold" disabled={!selectedCount || rolling} onClick={doRoll}>{rolling ? "Rolling…" : `Roll ${selectedCount} ${selectedCount === 1 ? "die" : "dice"}`}</button>
                 </div>
               </>
@@ -126,7 +133,7 @@ export function BattleDialog({ open, from, to, result, reducedMotion, onOpenChan
                 </div>
                 <div className="battle-outcome">
                   <span>Royal losses <b>{result.attackerLosses.length}</b></span>
-                  <strong>{result.captured ? `${to.name} captured` : "The battle continues"}</strong>
+                  <strong>{result.captured ? `${to.name} captured${result.rounds && result.rounds > 1 ? ` after ${result.rounds} rounds` : ""}` : result.rounds && result.rounds > 1 ? `Assault halted after ${result.rounds} rounds` : "The battle continues"}</strong>
                   <span>Enemy losses <b>{result.defenderLosses.length}</b></span>
                 </div>
                 <div className="battle-actions">
@@ -136,7 +143,7 @@ export function BattleDialog({ open, from, to, result, reducedMotion, onOpenChan
                     <>
                       <button className="button ghost" onClick={() => onOpenChange(false)}>Retreat</button>
                       <button className="button steel" onClick={() => { setSelection(initialSelection(from)); onReset(); }}><RotateCcw size={16}/> Change units</button>
-                      <button className="button gold" onClick={() => { setSelection(initialSelection(from)); onReset(); }}>Attack again</button>
+                      <button className="button gold" onClick={() => { setSelection(initialSelection(from)); onReset(); }}>Prepare next round</button>
                     </>
                   )}
                 </div>

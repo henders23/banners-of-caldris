@@ -12,9 +12,13 @@ type Props = {
   game: GameState;
   selectedId: string | null;
   targetIds: string[];
+  objectiveIds?: string[];
+  overlay?: MapOverlay;
   onSelect: (territory: Territory) => void;
   reducedMotion?: boolean;
 };
+
+export type MapOverlay = "none" | "routes" | "collections" | "threats";
 
 const WORLD_W = 15;
 const WORLD_H = 10;
@@ -166,7 +170,7 @@ function proceduralMapTexture(game: GameState, palette: [string, string]) {
   return texture;
 }
 
-export function ThreeBoard({ game, selectedId, targetIds, onSelect, reducedMotion = false }: Props) {
+export function ThreeBoard({ game, selectedId, targetIds, objectiveIds = [], overlay = "none", onSelect, reducedMotion = false }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [fallback, setFallback] = useState(false);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -301,7 +305,7 @@ export function ThreeBoard({ game, selectedId, targetIds, onSelect, reducedMotio
       if (dragging) return;
       setPointer(event);
       raycaster.setFromCamera(pointer, camera);
-      const hits = raycaster.intersectObjects(markerLayer.children, true);
+      const hits = raycaster.intersectObjects(markerLayerRef.current?.children ?? [], true);
       const id = hits.find(hit => hit.object.userData.territoryId)?.object.userData.territoryId as string | undefined;
       if (id) {
         const territory = gameRef.current.territories.find(t => t.id === id);
@@ -321,18 +325,13 @@ export function ThreeBoard({ game, selectedId, targetIds, onSelect, reducedMotio
     renderer.domElement.addEventListener("wheel", onWheel, { passive: false });
 
     const clock = new THREE.Clock();
-    let frame = 0;
     let raf = 0;
     const animate = () => {
       raf = requestAnimationFrame(animate);
       const t = clock.getElapsedTime();
-      frame++;
-      markerLayer.children.forEach((child, index) => {
-        if (child.userData.marker && !reducedMotion) child.position.y = Math.sin(t * 1.6 + index) * .018;
-      });
       const dust = scene.getObjectByName("dust") as THREE.Points | undefined;
       if (dust) dust.rotation.y = t * .014;
-      if (frame % 2 === 0 || reducedMotion) renderer.render(scene, camera);
+      renderer.render(scene, camera);
     };
     animate();
 
@@ -366,17 +365,18 @@ export function ThreeBoard({ game, selectedId, targetIds, onSelect, reducedMotio
   }, [reducedMotion]);
 
   useEffect(() => {
-    const layer = markerLayerRef.current;
-    if (!layer) return;
-    while (layer.children.length) {
-      const child = layer.children.pop()!;
-      child.traverse(object => {
-        if (object instanceof THREE.Mesh || object instanceof THREE.Line) {
-          object.geometry?.dispose();
-          const materials = Array.isArray(object.material) ? object.material : [object.material];
-          materials.forEach(m => m?.dispose());
-        }
-      });
+    const scene = sceneRef.current;
+    const previousLayer = markerLayerRef.current;
+    if (!scene || !previousLayer) return;
+    const layer = new THREE.Group();
+    markerLayerRef.current = layer;
+    scene.add(layer);
+    if (overlay === "routes") {
+      game.territories.forEach(territory => territory.neighbors.forEach(id => {
+        if (territory.id >= id) return;
+        const neighbor = game.territories.find(item => item.id === id);
+        if (neighbor) addRoute(layer, territory, neighbor, 0x9ec7da, .42);
+      }));
     }
     const selected = game.territories.find(t => t.id === selectedId);
     if (selected) {
@@ -412,8 +412,11 @@ export function ThreeBoard({ game, selectedId, targetIds, onSelect, reducedMotio
       sprite.position.set(-.08, .52, 0);
       sprite.userData.territoryId = territory.id;
       marker.add(sprite);
-      if (selectedId === territory.id || targetIds.includes(territory.id)) {
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(.36, .045, 8, 40), new THREE.MeshBasicMaterial({ color: selectedId === territory.id || game.phase === "fortify" ? 0xf6cf70 : 0xf04c3f, transparent: true, opacity: .95, depthTest: false }));
+      const threatened = territory.owner === "royal" && territory.neighbors.some(id => game.territories.find(item => item.id === id)?.owner !== "royal");
+      const collection = collections.find(item => item.id === territory.collection);
+      const ringColor = targetIds.includes(territory.id) ? (game.phase === "fortify" ? 0xf6cf70 : 0xf04c3f) : objectiveIds.includes(territory.id) ? 0x66d9ff : overlay === "threats" && threatened ? 0xff6a58 : overlay === "collections" ? Number.parseInt((collection?.color ?? "#d6bd77").slice(1), 16) : selectedId === territory.id ? 0xf6cf70 : null;
+      if (ringColor !== null) {
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(objectiveIds.includes(territory.id) ? .42 : .36, .045, 8, 40), new THREE.MeshBasicMaterial({ color: ringColor, transparent: true, opacity: .95, depthTest: false }));
         ring.rotation.x = Math.PI / 2;
         ring.position.y = -.15;
         marker.add(ring);
@@ -421,13 +424,26 @@ export function ThreeBoard({ game, selectedId, targetIds, onSelect, reducedMotio
       marker.rotation.y = (index % 3 - 1) * .08;
       layer.add(marker);
     });
-  }, [game, selectedId, targetIds]);
+    scene.remove(previousLayer);
+    previousLayer.children.forEach(child => {
+      child.traverse(object => {
+        if (object instanceof THREE.Mesh || object instanceof THREE.Line || object instanceof THREE.Sprite) {
+          object.geometry?.dispose();
+          const materials = Array.isArray(object.material) ? object.material : [object.material];
+          materials.forEach(material => {
+            if (material instanceof THREE.SpriteMaterial) material.map?.dispose();
+            material?.dispose();
+          });
+        }
+      });
+    });
+  }, [game, selectedId, targetIds, objectiveIds, overlay]);
 
   if (fallback) {
     const cells = territoryCells(game.territories);
     const terrainGlyph = terrainGlyphs[stage.rule];
     return (
-      <div className={`three-board fallback-board ${game.phase} stage-${game.stage}`} aria-label={`Interactive illustrated map of ${stage.name}`}>
+      <div className={`three-board fallback-board ${game.phase} stage-${game.stage} overlay-${overlay}`} aria-label={`Interactive illustrated map of ${stage.name}`}>
         <div className={`fallback-map-layer ${game.stage === 1 ? "" : "procedural-stage"}`} style={{ "--stage-a": stage.palette[0], "--stage-b": stage.palette[1] } as React.CSSProperties}>
           {game.stage === 1 ? <img src="/art/vale-of-stoneford.webp" alt="" /> : <div className="procedural-map-art" aria-hidden="true"><svg viewBox="0 0 100 100" preserveAspectRatio="none"><defs><filter id={`rough-${game.stage}`}><feTurbulence baseFrequency=".025" numOctaves="3" seed={game.stage}/><feBlend mode="soft-light" in="SourceGraphic"/></filter></defs><rect width="100" height="100" filter={`url(#rough-${game.stage})`}/><g className="stage-provinces">{cells.map(({ territory, polygon }) => <polygon key={territory.id} points={polygon.map(point => `${point.x * 100},${point.y * 100}`).join(" ")} style={{ "--province": collections.find(item => item.id === territory.collection)?.color } as React.CSSProperties}/>)}</g><path className="stage-river" d={`M -5 ${38 + game.stage % 9} C 20 ${25 + game.stage % 6}, 34 ${66 - game.stage % 7}, 55 ${47 + game.stage % 5} S 82 ${28 + game.stage % 8}, 105 ${52 - game.stage % 6}`}/><g className="stage-routes">{game.territories.flatMap(territory => territory.neighbors.filter(id => territory.id < id).map(id => { const neighbor = game.territories.find(item => item.id === id)!; return <line key={`${territory.id}-${id}`} x1={territory.x * 100} y1={territory.y * 100} x2={neighbor.x * 100} y2={neighbor.y * 100}/>; }))}</g><g className="terrain-glyphs">{game.territories.map((territory,index) => index % 4 === game.stage % 4 ? <text key={territory.id} x={territory.x * 100 + 1.8} y={territory.y * 100 - 1.8}>{terrainGlyph}</text> : null)}</g></svg><strong>{stage.name}</strong><span>{stage.ruleName}</span></div>}
           <div className="fallback-scrim" />
@@ -437,7 +453,7 @@ export function ThreeBoard({ game, selectedId, targetIds, onSelect, reducedMotio
             return (
               <button
                 aria-label={`${territory.name}, ${army} ${army === 1 ? "unit" : "units"}, ${faction.shortName}`}
-                className={`${selectedId === territory.id ? "selected" : ""} ${targetIds.includes(territory.id) ? "target" : ""} ${territory.neighbors.length <= 2 ? "chokepoint" : ""}`}
+                className={`${selectedId === territory.id ? "selected" : ""} ${targetIds.includes(territory.id) ? "target" : ""} ${objectiveIds.includes(territory.id) ? "objective" : ""} ${territory.neighbors.length <= 2 ? "chokepoint" : ""} ${territory.owner === "royal" && territory.neighbors.some(id => game.territories.find(item => item.id === id)?.owner !== "royal") ? "threatened" : ""}`}
                 key={territory.id}
                 onClick={() => onSelect(territory)}
                 style={{ left: `${territory.x * 100}%`, top: `${territory.y * 100}%`, "--faction": faction.color, "--metal": faction.metal } as React.CSSProperties}
