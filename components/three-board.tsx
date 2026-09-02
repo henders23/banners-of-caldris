@@ -12,6 +12,7 @@ type Props = {
   game: GameState;
   selectedId: string | null;
   targetIds: string[];
+  deployIds?: string[];
   objectiveIds?: string[];
   intentIds?: string[];
   overlay?: MapOverlay;
@@ -85,16 +86,16 @@ function numberSprite(value: number, foreground: string, stroke: string) {
   ctx.arc(64, 64, 45, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
-  ctx.font = "700 54px Georgia";
+  ctx.font = "700 62px Georgia";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillStyle = foreground;
-  ctx.fillText(String(value), 64, 67);
+  ctx.fillText(String(value), 64, 68);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
   const sprite = new THREE.Sprite(material);
-  sprite.scale.set(.7, .7, .7);
+  sprite.scale.set(.92, .92, .92);
   return sprite;
 }
 
@@ -117,6 +118,57 @@ function commandLabelSprite(text: string) {
   texture.colorSpace = THREE.SRGBColorSpace;
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }));
   sprite.scale.set(1.5, .38, 1);
+  return sprite;
+}
+
+function territoryNameSprite(text: string) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 320;
+  canvas.height = 72;
+  const ctx = canvas.getContext("2d")!;
+  ctx.font = "700 30px Georgia";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const width = Math.min(310, ctx.measureText(text).width + 26);
+  ctx.fillStyle = "rgba(6,12,16,.82)";
+  ctx.fillRect((320 - width) / 2, 14, width, 44);
+  ctx.strokeStyle = "rgba(228,199,132,.55)";
+  ctx.lineWidth = 2;
+  ctx.strokeRect((320 - width) / 2, 14, width, 44);
+  ctx.fillStyle = "#f6e6bd";
+  ctx.fillText(text, 160, 37);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }));
+  sprite.scale.set(1.42, .32, 1);
+  return sprite;
+}
+
+function deployPlusSprite() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "rgba(20,68,110,.94)";
+  ctx.strokeStyle = "#ffd97a";
+  ctx.lineWidth = 7;
+  ctx.beginPath();
+  ctx.arc(64, 64, 44, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.strokeStyle = "#ffe9ae";
+  ctx.lineWidth = 13;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(64, 38);
+  ctx.lineTo(64, 90);
+  ctx.moveTo(38, 64);
+  ctx.lineTo(90, 64);
+  ctx.stroke();
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }));
+  sprite.scale.set(.6, .6, .6);
   return sprite;
 }
 
@@ -243,7 +295,7 @@ function proceduralMapTexture(game: GameState, palette: [string, string]) {
   return texture;
 }
 
-export function ThreeBoard({ game, selectedId, targetIds, objectiveIds = [], intentIds = [], overlay = "none", onSelect, reducedMotion = false }: Props) {
+export function ThreeBoard({ game, selectedId, targetIds, deployIds = [], objectiveIds = [], intentIds = [], overlay = "none", onSelect, reducedMotion = false }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const [fallback, setFallback] = useState(false);
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -262,11 +314,21 @@ export function ThreeBoard({ game, selectedId, targetIds, objectiveIds = [], int
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x071016);
-    scene.fog = new THREE.FogExp2(0x071016, .018);
+    const fog = new THREE.FogExp2(0x071016, .018);
+    scene.fog = fog;
     sceneRef.current = scene;
 
-    const camera = new THREE.PerspectiveCamera(38, host.clientWidth / host.clientHeight, .1, 100);
-    camera.position.set(0, 10.8, 8.2);
+    // A tall, narrow viewport sees far less of the 15x10 table, so pull the camera
+    // back until a useful share of the realm is on screen without shrinking markers.
+    const BASE_HEIGHT = 10.8;
+    const BASE_DEPTH = 8.2;
+    let fitScale = 1;
+    const measureFit = (aspect: number) => THREE.MathUtils.clamp(1.6 / Math.max(aspect, .2) * .62, 1, 2.4);
+
+    const camera = new THREE.PerspectiveCamera(38, host.clientWidth / host.clientHeight, .1, 140);
+    fitScale = measureFit(camera.aspect);
+    fog.density = .018 / fitScale;
+    camera.position.set(0, BASE_HEIGHT * fitScale, BASE_DEPTH * fitScale);
     camera.lookAt(0, 0, 0);
     cameraRef.current = camera;
 
@@ -365,10 +427,10 @@ export function ThreeBoard({ game, selectedId, targetIds, objectiveIds = [], int
       const dy = event.clientY - down.y;
       if (Math.abs(dx) + Math.abs(dy) > 5) dragging = true;
       if (dragging) {
-        target.x = THREE.MathUtils.clamp(target.x - dx * .008, -2.8, 2.8);
-        target.z = THREE.MathUtils.clamp(target.z - dy * .008, -2.2, 2.2);
+        target.x = THREE.MathUtils.clamp(target.x - dx * .008 * fitScale, -3.4, 3.4);
+        target.z = THREE.MathUtils.clamp(target.z - dy * .008 * fitScale, -2.6, 2.6);
         camera.position.x = target.x;
-        camera.position.z = 8.2 + target.z;
+        camera.position.z = BASE_DEPTH * fitScale + target.z;
         camera.lookAt(target.x, 0, target.z);
         down = { x: event.clientX, y: event.clientY };
       }
@@ -387,9 +449,9 @@ export function ThreeBoard({ game, selectedId, targetIds, objectiveIds = [], int
     };
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
-      const scale = THREE.MathUtils.clamp(camera.position.y + event.deltaY * .006, 7.2, 14);
+      const scale = THREE.MathUtils.clamp(camera.position.y + event.deltaY * .006 * fitScale, 7.2 * fitScale, 14 * fitScale);
       camera.position.y = scale;
-      camera.position.z = 8.2 + target.z + (scale - 10.8) * .72;
+      camera.position.z = BASE_DEPTH * fitScale + target.z + (scale - BASE_HEIGHT * fitScale) * .72;
       camera.lookAt(target.x, 0, target.z);
     };
     renderer.domElement.addEventListener("pointerdown", onPointerDown);
@@ -410,6 +472,13 @@ export function ThreeBoard({ game, selectedId, targetIds, objectiveIds = [], int
 
     const resize = () => {
       camera.aspect = host.clientWidth / host.clientHeight;
+      const nextFit = measureFit(camera.aspect);
+      if (Math.abs(nextFit - fitScale) > .01) {
+        fitScale = nextFit;
+        fog.density = .018 / fitScale;
+        camera.position.set(target.x, BASE_HEIGHT * fitScale, BASE_DEPTH * fitScale + target.z);
+        camera.lookAt(target.x, 0, target.z);
+      }
       camera.updateProjectionMatrix();
       renderer.setSize(host.clientWidth, host.clientHeight);
     };
@@ -482,20 +551,31 @@ export function ThreeBoard({ game, selectedId, targetIds, objectiveIds = [], int
       banner.userData.territoryId = territory.id;
       marker.add(banner);
       const sprite = numberSprite(totalUnits(territory.units), faction.metal, faction.color);
-      sprite.position.set(-.08, .52, 0);
+      sprite.position.set(-.1, .56, 0);
       sprite.userData.territoryId = territory.id;
       marker.add(sprite);
+      const nameLabel = territoryNameSprite(territory.name);
+      nameLabel.position.set(0, -.05, .46);
+      nameLabel.userData.territoryId = territory.id;
+      marker.add(nameLabel);
+      const deployable = deployIds.includes(territory.id);
+      if (deployable) {
+        const plus = deployPlusSprite();
+        plus.position.set(.34, .96, 0);
+        plus.userData.territoryId = territory.id;
+        marker.add(plus);
+      }
       if (selectedId === territory.id && territory.owner === "royal" && game.phase === "reinforce") {
-        const label = commandLabelSprite("YOUR ARMY");
-        label.position.set(0, 1.02, 0);
+        const label = commandLabelSprite(deployable ? "CLICK TO PLACE" : "YOUR ARMY");
+        label.position.set(0, 1.16, 0);
         marker.add(label);
       }
       const threatened = territory.owner === "royal" && territory.neighbors.some(id => game.territories.find(item => item.id === id)?.owner !== "royal");
       const collection = collections.find(item => item.id === territory.collection);
       const isSelected = selectedId === territory.id;
-      const ringColor = targetIds.includes(territory.id) ? (game.phase === "fortify" ? 0xf6cf70 : 0xf04c3f) : isSelected ? 0xf6cf70 : objectiveIds.includes(territory.id) ? 0x66d9ff : overlay === "threats" && intentIds.includes(territory.id) ? 0xff3f31 : overlay === "threats" && threatened ? 0xff8a58 : overlay === "collections" ? Number.parseInt((collection?.color ?? "#d6bd77").slice(1), 16) : null;
+      const ringColor = targetIds.includes(territory.id) ? (game.phase === "fortify" ? 0xf6cf70 : 0xf04c3f) : isSelected ? 0xf6cf70 : deployable ? 0x63d0ff : objectiveIds.includes(territory.id) ? 0x66d9ff : overlay === "threats" && intentIds.includes(territory.id) ? 0xff3f31 : overlay === "threats" && threatened ? 0xff8a58 : overlay === "collections" ? Number.parseInt((collection?.color ?? "#d6bd77").slice(1), 16) : null;
       if (ringColor !== null) {
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(isSelected ? .48 : objectiveIds.includes(territory.id) ? .42 : .38, isSelected ? .06 : .045, 8, 40), new THREE.MeshBasicMaterial({ color: ringColor, transparent: true, opacity: .95, depthTest: false }));
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(isSelected ? .48 : deployable ? .44 : objectiveIds.includes(territory.id) ? .42 : .38, isSelected ? .06 : deployable ? .055 : .045, 8, 40), new THREE.MeshBasicMaterial({ color: ringColor, transparent: true, opacity: .95, depthTest: false }));
         ring.rotation.x = Math.PI / 2;
         ring.position.y = -.15;
         marker.add(ring);
@@ -516,7 +596,7 @@ export function ThreeBoard({ game, selectedId, targetIds, objectiveIds = [], int
         }
       });
     });
-  }, [game, selectedId, targetIds, objectiveIds, intentIds, overlay]);
+  }, [game, selectedId, targetIds, deployIds, objectiveIds, intentIds, overlay]);
 
   if (fallback) {
     const cells = territoryCells(game.territories);
@@ -531,8 +611,8 @@ export function ThreeBoard({ game, selectedId, targetIds, objectiveIds = [], int
             const army = totalUnits(territory.units);
             return (
               <button
-                aria-label={`${territory.name}, ${army} ${army === 1 ? "unit" : "units"}, ${faction.shortName}`}
-                className={`${selectedId === territory.id ? "selected" : ""} ${targetIds.includes(territory.id) ? "target" : ""} ${objectiveIds.includes(territory.id) ? "objective" : ""} ${intentIds.includes(territory.id) ? "intent-target" : ""} ${territory.neighbors.length <= 2 ? "chokepoint" : ""} ${territory.owner === "royal" ? "royal-army" : ""} ${territory.owner === "royal" && selectedId === territory.id && game.phase === "reinforce" ? "start-here" : ""} ${territory.owner === "royal" && territory.neighbors.some(id => game.territories.find(item => item.id === id)?.owner !== "royal") ? "threatened" : ""}`}
+                aria-label={`${territory.name}, ${army} ${army === 1 ? "unit" : "units"}, ${faction.shortName}${deployIds.includes(territory.id) ? ", click to place an army here" : ""}`}
+                className={`${selectedId === territory.id ? "selected" : ""} ${targetIds.includes(territory.id) ? "target" : ""} ${objectiveIds.includes(territory.id) ? "objective" : ""} ${intentIds.includes(territory.id) ? "intent-target" : ""} ${territory.neighbors.length <= 2 ? "chokepoint" : ""} ${territory.owner === "royal" ? "royal-army" : ""} ${deployIds.includes(territory.id) ? "deployable" : ""} ${territory.owner === "royal" && selectedId === territory.id && game.phase === "reinforce" ? "start-here" : ""} ${territory.owner === "royal" && territory.neighbors.some(id => game.territories.find(item => item.id === id)?.owner !== "royal") ? "threatened" : ""}`}
                 key={territory.id}
                 onClick={() => onSelect(territory)}
                 style={{ left: `${territory.x * 100}%`, top: `${territory.y * 100}%`, "--faction": faction.color, "--metal": faction.metal } as React.CSSProperties}

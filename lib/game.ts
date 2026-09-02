@@ -4,6 +4,7 @@ export type Phase = "reinforce" | "attack" | "fortify" | "enemy" | "victory" | "
 export type KingsOrder = "levy" | "vanguard" | "bastion";
 export type CampaignRule = "standard" | "riches" | "causeways" | "high-ground" | "forest" | "wolf-charge" | "bridge-tolls" | "frontier" | "winter" | "fractured" | "royal-road" | "citadel";
 export type VictoryKind = "conquest" | "territories" | "collections" | "eliminate-wolves" | "survive" | "eliminate-two";
+export type OmenId = "muster" | "harvest" | "mercenaries" | "zeal" | "vigil" | "storm" | "unrest";
 
 export type Units = Record<UnitType, number>;
 
@@ -110,7 +111,17 @@ export interface GameState {
   campaignWins: number;
   preview: boolean;
   seed: number;
+  momentum: number;
+  momentumBonus: number;
+  omen: OmenId;
   log: string[];
+}
+
+export interface Omen {
+  id: OmenId;
+  name: string;
+  detail: string;
+  tone: "good" | "hard";
 }
 
 export const factions: Record<FactionId, Faction> = {
@@ -164,6 +175,23 @@ export const collections: Collection[] = [
   { id: "fens", name: "The Fenlands", bonus: 3, color: "#2b9e9c" },
   { id: "south", name: "The Southern Reach", bonus: 4, color: "#7650a5" },
 ];
+
+export const omens: Record<OmenId, Omen> = {
+  muster: { id: "muster", name: "The Realm Answers", detail: "Word of the returning king spreads: 2 extra muster points to raise the opening army.", tone: "good" },
+  harvest: { id: "harvest", name: "A Full Harvest", detail: "Granaries are full across the realm: 2 extra muster points this turn.", tone: "good" },
+  mercenaries: { id: "mercenaries", name: "Sellswords at the Gate", detail: "A free company rides in: 1 cavalry joins your most exposed border.", tone: "good" },
+  zeal: { id: "zeal", name: "Fervour of the Faithful", detail: "The host marches under blessed banners: every royal attacking die gains +1 this turn.", tone: "good" },
+  vigil: { id: "vigil", name: "The Long Vigil", detail: "Your watchmen never sleep: every royal defending die gains +1 this turn.", tone: "good" },
+  storm: { id: "storm", name: "Storms on the Roads", detail: "Rival supply trains are mired: every rival house musters 1 fewer point this turn.", tone: "good" },
+  unrest: { id: "unrest", name: "Whispers of Sedition", detail: "Rival lords are recruiting in your shadow: every rival house musters 1 extra point this turn.", tone: "hard" },
+};
+
+const omenRotation: OmenId[] = ["harvest", "zeal", "mercenaries", "unrest", "vigil", "storm"];
+
+export function omenForTurn(stage: number, turn: number): OmenId {
+  if (turn <= 1) return "muster";
+  return omenRotation[(stage * 5 + turn * 3 + Math.floor((stage + turn) / 5)) % omenRotation.length];
+}
 
 export const campaignStages: CampaignStage[] = [
   { id: 1, name: "The Vale of Stoneford", act: "Act I — Secure the Heartlands", objective: "Secure the royal heartland", objectiveDetail: "Control the Northern March and Crownlands.", victoryKind: "collections", objectiveCollections: ["north", "crown"], reward: "The King's Favour", rewardDetail: "+1 infantry joins the opening stronghold in every later chapter.", briefing: "The royal standard has returned to Stoneford. Reclaim the northern forts and the Crownlands before the rival houses close around them.", palette: ["#365a36", "#bc8b46"], difficulty: 1, rule: "standard", ruleName: "Open heartlands", ruleDetail: "No field modifier. Learn the roads, collections and rival doctrines.", terrainProfile: "A broad central river splits fertile Crownlands from the five northern forts." },
@@ -334,7 +362,7 @@ export function createGame(stage = 1, campaignWins = 0, preview = false): GameSt
   const regionalEdges = buildRegionalEdges(stage, regionalNodes);
   const territories: Territory[] = regionalNodes.map(node => ({ ...node, neighbors: regionalEdges.filter(([a,b]) => a === node.id || b === node.id).map(([a,b]) => a === node.id ? b : a) }));
   const legacy = campaignWins ? ` Campaign rewards: ${campaignLegacySummary(campaignWins)}.` : "";
-  const state: GameState = { stage, turn: 1, phase: "reinforce", activeFaction: "royal", reinforcements: 0, fortifiedThisTurn: false, kingsOrder: null, kingsOrderUsed: false, territories, campaignWins, preview, seed: 1069 + stage * 97, log: [`${campaignStages[stage - 1]?.ruleName ?? "Royal banners"}: ${campaignStages[stage - 1]?.ruleDetail ?? "The campaign begins."}${legacy}`] };
+  const state: GameState = { stage, turn: 1, phase: "reinforce", activeFaction: "royal", reinforcements: 0, fortifiedThisTurn: false, kingsOrder: null, kingsOrderUsed: false, territories, campaignWins, preview, seed: 1069 + stage * 97, momentum: 0, momentumBonus: 0, omen: omenForTurn(stage, 1), log: [`${campaignStages[stage - 1]?.ruleName ?? "Royal banners"}: ${campaignStages[stage - 1]?.ruleDetail ?? "The campaign begins."}${legacy}`] };
   state.reinforcements = reinforcementIncome(state, "royal");
   return state;
 }
@@ -371,6 +399,11 @@ export function reinforcementIncome(state: GameState, faction: FactionId): numbe
   if (faction === "royal") {
     income += rewardBonuses.musterBonus;
     income += held.length * rewardBonuses.collectionBonus;
+    if (state.omen === "muster" || state.omen === "harvest") income += 2;
+    income += state.momentumBonus;
+  } else {
+    if (state.omen === "unrest") income += 1;
+    if (state.omen === "storm") income = Math.max(3, income - 1);
   }
   return income;
 }
@@ -395,7 +428,7 @@ export function reinforce(state: GameState, territoryId: string, unit: UnitType)
   const next = cloneGame(state);
   const territory = next.territories.find(t => t.id === territoryId);
   const cost = unitCost(unit);
-  if (!territory || territory.owner !== "royal" || next.phase !== "reinforce" || !next.kingsOrder || next.reinforcements < cost) return state;
+  if (!territory || territory.owner !== "royal" || next.phase !== "reinforce" || next.reinforcements < cost) return state;
   territory.units[unit] += 1;
   next.reinforcements -= cost;
   next.log.unshift(`${unit[0].toUpperCase() + unit.slice(1)} mustered at ${territory.name}.`);
@@ -408,9 +441,10 @@ function nextRandom(state: GameState): [number, number] {
   return [Math.abs(x % 100000) / 100000, x];
 }
 
-function diceFor(state: GameState, units: UnitType[], side: "attack" | "defend"): [BattleDie[], number] {
+function diceFor(state: GameState, units: UnitType[], side: "attack" | "defend", faction: FactionId = "royal"): [BattleDie[], number] {
   let seed = state.seed;
   const fieldRule = campaignStages[state.stage - 1]?.rule;
+  const royal = faction === "royal";
   const dice = units.map(unit => {
     const [r, nextSeed] = nextRandom({ ...state, seed });
     seed = nextSeed;
@@ -419,9 +453,15 @@ function diceFor(state: GameState, units: UnitType[], side: "attack" | "defend")
     if (fieldRule === "forest" && side === "attack" && unit === "cavalry") roleBonus = 0;
     if (fieldRule === "wolf-charge" && side === "attack" && unit === "cavalry") roleBonus += 1;
     if (fieldRule === "high-ground" && side === "defend" && unit === "archers") roleBonus += 1;
+    if (royal && side === "attack" && state.omen === "zeal") roleBonus += 1;
+    if (royal && side === "defend" && state.omen === "vigil") roleBonus += 1;
     const bonus = roleBonus;
     return { unit, roll, bonus, total: roll + bonus };
   }).sort((a,b) => b.total - a.total);
+  if (royal && side === "attack" && state.momentum > 0 && dice.length) {
+    dice[0] = { ...dice[0], bonus: dice[0].bonus + 1, total: dice[0].total + 1 };
+    dice.sort((a,b) => b.total - a.total);
+  }
   return [dice, seed];
 }
 
@@ -454,8 +494,8 @@ export function resolveBattleRound(state: GameState, fromId: string, toId: strin
   const defenders = chooseDefenders(to.units);
   let attackerDice: BattleDie[];
   let seedB: number;
-  [attackerDice, seedB] = diceFor(next, attackers, "attack");
-  const defenderRoll = diceFor({ ...next, seed: seedB }, defenders, "defend");
+  [attackerDice, seedB] = diceFor(next, attackers, "attack", "royal");
+  const defenderRoll = diceFor({ ...next, seed: seedB }, defenders, "defend", to.owner);
   const defenderDice = defenderRoll[0];
   seedB = defenderRoll[1];
   if (next.kingsOrder === "vanguard" && !next.kingsOrderUsed) {
@@ -485,7 +525,8 @@ export function resolveBattleRound(state: GameState, fromId: string, toId: strin
       ?? vanguardPriority.find(unit => from.units[unit] > 0);
     if (occupyingUnit) { from.units[occupyingUnit]--; to.units[occupyingUnit]++; }
     to.owner = "royal";
-    next.log.unshift(`${to.name} has fallen. The vanguard waits for an occupation order.`);
+    next.momentum += 1;
+    next.log.unshift(`${to.name} has fallen. Momentum ${next.momentum} — the royal host is in full cry.`);
   } else {
     next.log.unshift(`${from.name} attacks ${to.name}: ${attackerLosses.length} royal and ${defenderLosses.length} enemy losses.`);
   }
@@ -556,8 +597,30 @@ export function resolveFullAssault(state: GameState, fromId: string, toId: strin
   return { state: current, result: { ...finalResult, attackerLosses, defenderLosses, rounds } };
 }
 
+export function deployRemaining(state: GameState): GameState {
+  if (state.phase !== "reinforce" || state.reinforcements < 1) return state;
+  const next = cloneGame(state);
+  const openBorders = (territory: Territory) => territory.neighbors.filter(id => next.territories.find(item => item.id === id)?.owner !== "royal").length;
+  const frontline = next.territories
+    .filter(territory => territory.owner === "royal" && openBorders(territory) > 0)
+    .sort((a, b) => openBorders(b) - openBorders(a) || totalUnits(a.units) - totalUnits(b.units) || a.id.localeCompare(b.id));
+  const line = frontline.length ? frontline : next.territories.filter(territory => territory.owner === "royal");
+  if (!line.length) return state;
+  let placed = 0;
+  let index = 0;
+  while (next.reinforcements >= 1) {
+    const territory = line[index % line.length];
+    if (next.reinforcements >= 2 && index % 3 === 2) { territory.units.cavalry += 1; next.reinforcements -= 2; }
+    else { territory.units.infantry += 1; next.reinforcements -= 1; }
+    placed += 1;
+    index += 1;
+  }
+  next.log.unshift(`${placed} ${placed === 1 ? "company musters" : "companies muster"} along the threatened border.`);
+  return next;
+}
+
 export function startAttackPhase(state: GameState): GameState {
-  if (state.phase !== "reinforce" || !state.kingsOrder) return state;
+  if (state.phase !== "reinforce") return state;
   return { ...state, phase: "attack", reinforcements: 0, log: ["The Royal Army advances.", ...state.log] };
 }
 
@@ -595,6 +658,13 @@ export function connectedFriendly(state: GameState, fromId: string, toId: string
     });
   }
   return false;
+}
+
+export function mostExposedTerritory(state: GameState, faction: FactionId): Territory | undefined {
+  const openBorders = (territory: Territory) => territory.neighbors.filter(id => state.territories.find(item => item.id === id)?.owner !== faction).length;
+  return state.territories
+    .filter(territory => territory.owner === faction)
+    .sort((a, b) => openBorders(b) - openBorders(a) || totalUnits(b.units) - totalUnits(a.units) || a.id.localeCompare(b.id))[0];
 }
 
 function addUnitToStronghold(state: GameState, faction: FactionId, points: number): void {
@@ -662,8 +732,8 @@ function aiAttackOnce(state: GameState, faction: FactionId): GameState {
   if (!option || option.score < attackThreshold) return next;
   const attackers = chooseAttackers(option.from.units);
   const defenders = chooseDefenders(option.to.units);
-  const [ad, sa] = diceFor(next, attackers, "attack");
-  const defenseRoll = diceFor({ ...next, seed: sa }, defenders, "defend");
+  const [ad, sa] = diceFor(next, attackers, "attack", faction);
+  const defenseRoll = diceFor({ ...next, seed: sa }, defenders, "defend", option.to.owner);
   let dd = defenseRoll[0];
   let sb = defenseRoll[1];
   if (option.to.owner === "royal" && next.kingsOrder === "bastion" && !next.kingsOrderUsed) {
@@ -712,8 +782,19 @@ export function runEnemyTurn(state: GameState): GameState {
   next.fortifiedThisTurn = false;
   next.kingsOrder = null;
   next.kingsOrderUsed = false;
+  next.momentumBonus = Math.min(3, next.momentum);
+  next.momentum = 0;
+  next.omen = omenForTurn(next.stage, next.turn);
+  if (next.omen === "mercenaries") {
+    const hired = mostExposedTerritory(next, "royal");
+    if (hired) {
+      hired.units.cavalry += 1;
+      next.log.unshift(`Sellswords at the Gate: a free company of cavalry rides into ${hired.name}.`);
+    }
+  }
   next.reinforcements = reinforcementIncome(next, "royal");
-  next.log.unshift(`Turn ${next.turn}: ${next.reinforcements} reinforcement points available.`);
+  const carried = next.momentumBonus ? `, ${next.momentumBonus} carried by momentum` : "";
+  next.log.unshift(`Turn ${next.turn} — ${omens[next.omen].name}: ${next.reinforcements} muster points${carried}.`);
   return checkOutcome(next);
 }
 

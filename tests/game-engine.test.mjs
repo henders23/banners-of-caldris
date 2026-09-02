@@ -17,12 +17,83 @@ test("creates a connected and symmetric 32-territory campaign", () => {
   }
 });
 
-test("locks one consequential Royal Command per turn", () => {
+test("lets the player muster immediately and still locks one Royal Command per turn", () => {
   const game = rules.createGame(1, 0);
-  assert.equal(rules.reinforce(game, "stoneford", "infantry"), game);
-  const levy = rules.chooseKingsOrder(game, "levy");
-  assert.equal(levy.reinforcements, game.reinforcements + 2);
+  const mustered = rules.reinforce(game, "stoneford", "infantry");
+  assert.notEqual(mustered, game);
+  assert.equal(mustered.reinforcements, game.reinforcements - 1);
+  assert.equal(mustered.territories.find(item => item.id === "stoneford").units.infantry, game.territories.find(item => item.id === "stoneford").units.infantry + 1);
+  const levy = rules.chooseKingsOrder(mustered, "levy");
+  assert.equal(levy.reinforcements, mustered.reinforcements + 2);
   assert.equal(rules.chooseKingsOrder(levy, "vanguard"), levy);
+});
+
+test("opens every chapter with points already waiting to be placed", () => {
+  for (const stage of rules.campaignStages) {
+    const game = rules.createGame(stage.id, 0, true);
+    assert.equal(game.phase, "reinforce");
+    assert.ok(game.reinforcements >= 5, `chapter ${stage.id} opens with ${game.reinforcements} points`);
+    assert.ok(game.territories.some(item => item.owner === "royal"));
+    assert.equal(rules.startAttackPhase(game).phase, "attack");
+  }
+});
+
+test("places every remaining muster point on the threatened border in one order", () => {
+  const game = rules.createGame(1, 0);
+  const deployed = rules.deployRemaining(game);
+  assert.equal(deployed.reinforcements, 0);
+  const before = game.territories.filter(item => item.owner === "royal").reduce((sum, item) => sum + rules.totalUnits(item.units), 0);
+  const after = deployed.territories.filter(item => item.owner === "royal").reduce((sum, item) => sum + rules.totalUnits(item.units), 0);
+  assert.ok(after > before);
+  const openBorder = territory => territory.neighbors.some(id => deployed.territories.find(item => item.id === id)?.owner !== "royal");
+  const reinforced = deployed.territories.filter((item, index) => rules.totalUnits(item.units) > rules.totalUnits(game.territories[index].units));
+  assert.ok(reinforced.length > 0);
+  assert.ok(reinforced.every(openBorder));
+  assert.equal(rules.deployRemaining(deployed), deployed);
+});
+
+test("rewards chained captures with momentum that carries into the next muster", () => {
+  const game = rules.createGame(1, 0);
+  assert.equal(game.momentum, 0);
+  const captured = { ...rules.startAttackPhase(game), momentum: 2 };
+  const banked = rules.endPlayerTurn(rules.startFortifyPhase(captured));
+  assert.equal(banked.momentum, 0);
+  assert.equal(banked.momentumBonus, 2);
+  assert.equal(banked.reinforcements, rules.reinforcementIncome(banked, "royal"));
+  assert.equal(rules.endPlayerTurn(rules.startFortifyPhase({ ...rules.startAttackPhase(game), momentum: 9 })).momentumBonus, 3);
+});
+
+test("gives momentum a real edge on the leading attacking die", () => {
+  const base = rules.startAttackPhase(rules.createGame(1, 0));
+  const calm = rules.resolveBattleRound(base, "stoneford", "crownmarket", ["infantry", "archers"]);
+  const charging = rules.resolveBattleRound({ ...base, momentum: 1 }, "stoneford", "crownmarket", ["infantry", "archers"]);
+  assert.equal(charging.result.attackerDice[0].roll, calm.result.attackerDice[0].roll);
+  assert.equal(charging.result.attackerDice[0].total, calm.result.attackerDice[0].total + 1);
+});
+
+test("opens every turn with a named omen that changes the turn's terms", () => {
+  const game = rules.createGame(1, 0);
+  assert.equal(game.omen, "muster");
+  const seen = new Set();
+  for (let turn = 1; turn <= 12; turn++) seen.add(rules.omenForTurn(1, turn));
+  assert.ok(seen.size >= 4, `only ${seen.size} distinct omens across twelve turns`);
+  for (const id of seen) {
+    assert.ok(rules.omens[id], `omen ${id} has no description`);
+    assert.ok(rules.omens[id].detail.length > 30);
+  }
+  assert.equal(rules.omenForTurn(4, 7), rules.omenForTurn(4, 7));
+
+  const quiet = { ...game, omen: "vigil" };
+  assert.equal(rules.reinforcementIncome({ ...quiet, omen: "harvest" }, "royal"), rules.reinforcementIncome(quiet, "royal") + 2);
+  assert.equal(rules.reinforcementIncome({ ...quiet, omen: "unrest" }, "wolves"), rules.reinforcementIncome(quiet, "wolves") + 1);
+});
+
+test("keeps omen combat bonuses on the royal side only", () => {
+  const base = rules.startAttackPhase(rules.createGame(1, 0));
+  const plain = rules.resolveBattleRound(base, "stoneford", "crownmarket", ["infantry", "archers"]);
+  const blessed = rules.resolveBattleRound({ ...base, omen: "zeal" }, "stoneford", "crownmarket", ["infantry", "archers"]);
+  assert.deepEqual(blessed.result.defenderDice, plain.result.defenderDice);
+  assert.ok(blessed.result.attackerDice.every((die, index) => die.total === plain.result.attackerDice[index].total + 1));
 });
 
 test("preserves deterministic battle transcripts", () => {

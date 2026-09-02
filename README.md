@@ -11,14 +11,15 @@ The game is designed for the browser with a direct Three.js war table and battle
 
 ## Core rules
 
-Each turn has four decisions:
+Every turn opens with a named **omen** that changes the terms of that turn alone — extra muster points, free sellswords, blessed attacks, or rival houses recruiting harder. Then the turn runs in three steps:
 
-1. **Royal Command** — seal one mutually exclusive command: extra levies, a cavalry-led opening assault, or an archer-led defence.
-2. **Muster** — gain `max(3, floor(territories / 3))` points plus bonuses from complete territorial collections. Infantry cost 1; archers and cavalry cost 2.
-3. **Conquer** — attack an adjacent enemy with up to three units while leaving one unit behind. Defenders roll up to two dice and win ties. Cavalry gain +1 while attacking; archers gain +1 while defending.
-4. **Final movement** — once per turn, move any mix of units between connected friendly territories, leaving one unit behind.
+1. **Muster** — gain `max(3, floor(territories / 3))` points plus bonuses from complete territorial collections, then place companies by clicking your own lands on the map. Infantry cost 1; archers and cavalry cost 2. Optionally seal one Royal Command: extra levies, a cavalry-led opening assault, or an archer-led defence.
+2. **Conquer** — attack an adjacent enemy with up to three units while leaving one unit behind. Defenders roll up to two dice and win ties. Cavalry gain +1 while attacking; archers gain +1 while defending.
+3. **Final movement** — once per turn, move any mix of units between connected friendly territories, leaving one unit behind.
 
-Secure all 32 territories to win the region. Campaign progress and the current battle state persist locally in the browser.
+**Momentum** rewards pressing an advantage: every territory captured in a turn lights the momentum meter, which adds +1 to your strongest attacking die for the rest of the turn and carries up to three points into the next muster.
+
+Each chapter has its own victory condition, from securing two regions to breaking a rival house outright. Campaign progress and the current battle state persist locally in the browser.
 
 ## Campaign
 
@@ -67,17 +68,18 @@ The shell scripts under `scripts/` must stay executable in git (mode `100755`); 
 
 ## Architecture
 
-- `lib/game.ts` — deterministic campaign state, topology, combat, reinforcement, fortification, and rival AI
+- `lib/game.ts` — deterministic campaign state, topology, combat, muster, momentum, omens, fortification, and rival AI
 - `components/three-board.tsx` — interactive Three.js war table plus illustrated fallback
 - `components/battle-diorama.tsx` — Three.js battle theatre plus illustrated fallback
-- `components/game-shell.tsx` — title, campaign, council, board, save flow, rulebook, and reports
+- `components/game-shell.tsx` — title, campaign, council, board, save flow, rulebook, and reports. The board shows only what the current step needs; the objective, scout predictions and map layers live behind the war-room toggle.
 - `tests/game-engine.test.mjs` — topology, orders, deterministic battle, fortification, and AI-report invariants
 
-All gameplay randomness is seeded, so combat transcripts can be reproduced in tests and save files. Automated coverage also verifies that all twelve route graphs are distinct, connected and symmetric; field rules affect engine decisions; and intelligence skirmishes cannot advance or overwrite the campaign.
+All gameplay randomness is seeded, so combat transcripts can be reproduced in tests and save files. Automated coverage also verifies that all twelve route graphs are distinct, connected and symmetric; field rules affect engine decisions; momentum and omens change real combat and muster arithmetic on the royal side only; and intelligence skirmishes cannot advance or overwrite the campaign.
 
 ## Accessibility and resilience
 
-- Every territory is a labelled native button in fallback mode.
+- Every territory is a labelled native button in fallback mode, and every territory carries a permanent name label in both modes.
+- During muster, every land you can reinforce is ringed and marked with a `+`; one click places a company there.
 - Critical information is repeated through icon, text, and colour.
 - Reduced motion follows the operating-system preference and can be changed in the campaign menu.
 - A WebGL failure automatically switches to an illustrated board without losing controls.

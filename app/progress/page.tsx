@@ -2,8 +2,9 @@ import { Check, CircleDot, Crown, GitCompareArrows, Hammer, ShieldCheck, Sparkle
 
 const systems = [
   { name: "Conquest rules", detail: "32 territories, adjacency, collections and reinforcements", status: "playable", completion: 92 },
-  { name: "Royal Commands", detail: "Three balanced commitments: muster now, attack rally or defence rally", status: "playable", completion: 98 },
-  { name: "Army command", detail: "Infantry, archers and cavalry adapt to regional field rules", status: "playable", completion: 90 },
+  { name: "Royal Commands", detail: "Optional once-a-turn commitment: muster now, attack rally or defence rally", status: "playable", completion: 98 },
+  { name: "Army command", detail: "Place companies straight onto the map; infantry, archers and cavalry adapt to regional field rules", status: "playable", completion: 92 },
+  { name: "Momentum and omens", detail: "Chained captures strengthen the next assault and carry into muster; every turn opens under a named omen", status: "playable", completion: 88 },
   { name: "Battle theatre", detail: "Simulated capture odds, occupation orders, unit formations, casualties and layered sound", status: "playable", completion: 98 },
   { name: "Strategic map", detail: "Twelve distinct strategic shapes, routes, barriers, collections and chokepoints", status: "playable", completion: 98 },
   { name: "Enemy houses", detail: "Three doctrine-led AIs with visible intentions and chronological scout reports", status: "playable", completion: 97 },
